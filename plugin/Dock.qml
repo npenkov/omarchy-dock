@@ -577,7 +577,15 @@ Item {
 
   onRevealedChanged: {
     if (revealed) evaluateConditions()
-    else hoveredLabel = ""
+    else {
+      hoveredLabel = ""
+      // The popups anchor to the dock; a dock that hides from under them
+      // (hideOnLaunch via another item, IPC hide, settings opening) would
+      // leave them floating over bare desktop. Hiding closes them, on
+      // every hide path, because this is the hide path.
+      contextMenu.close()
+      windowStack.close()
+    }
   }
 
   Timer {

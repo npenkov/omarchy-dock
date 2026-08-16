@@ -186,14 +186,6 @@ PopupWindow {
     color: Util.alpha(Color.popups.background, 0.97)
     borderSpec: menu.menuBorder
 
-    // Escape dismisses, when the compositor hands the popup keyboard focus
-    // under the grab. Nothing is lost when it doesn't.
-    focus: menu.open
-    Keys.onEscapePressed: function(event) {
-      menu.close()
-      event.accepted = true
-    }
-
     Column {
       id: column
       x: Border.left(menu.menuBorder) + menu.pad

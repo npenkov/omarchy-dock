@@ -23,8 +23,8 @@ stack, full macOS style (off by default: hover-focus steals focus from
 wherever you were typing).
 
 The right-click menu dismisses like every other shell popup: click
-anywhere else, pick a row, or press Escape. Hovering another icon dismisses
-it too, so a menu opened by mistake never needs a trip off the dock.
+anywhere else or pick a row. Hovering another icon dismisses it too, so a
+menu opened by mistake never needs a trip off the dock.
 
 It ships as a third-party Quickshell plugin (`rdf.dock`) plus a settings
 GUI (right-click → Dock Settings…, or double-click the dock background)

@@ -160,6 +160,7 @@ Item {
   // Right-click on the icon whose menu is already up toggles it, like the
   // bar's tray menu; on any other icon the menu moves there.
   function openMenu(cell) {
+    if (!cell || cell.isRule) return
     if (menuOpen && cell.index === menuIndex) {
       contextMenu.close()
       return

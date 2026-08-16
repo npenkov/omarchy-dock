@@ -184,12 +184,26 @@ Item {
     onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x)
   }
 
+  // Hover dwell for the window stack: a grouped icon (2+ windows) held
+  // under the pointer for a beat opens the preview stack. Leaving before
+  // the dwell fires cancels it.
+  Timer {
+    id: stackDwell
+    interval: 300
+    onTriggered: {
+      if (iconHover.hovered && cell.wins.length > 1 && !cell.dock.dragging)
+        cell.dock.openStack(cell)
+    }
+  }
+
   HoverHandler {
     id: iconHover
     enabled: !cell.isRule
     cursorShape: Qt.PointingHandCursor
 
     onHoveredChanged: {
+      if (hovered && cell.wins.length > 1) stackDwell.restart()
+      else stackDwell.stop()
       if (cell.dock.dragging) return
       if (hovered) {
         cell.dock.hoveredLabel = cell.label
@@ -273,5 +287,35 @@ Item {
     height: cell.dock.runningIndicator === "line" ? 2 : 5
     radius: cell.dock.runningIndicator === "line" ? 1 : 2.5
     color: Color.accent
+  }
+
+  // Count badge on grouped icons. It shares the top-right corner with the
+  // pin badge, which only exists on hover — so the count yields to it then.
+  Rectangle {
+    readonly property bool shown: !cell.isRule && cell.wins.length > 1 && !pinBadge.shown
+    visible: opacity > 0
+    opacity: shown ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+    height: Math.max(14, Math.round(cell.dock.slot * 0.32))
+    width: Math.max(height, Math.round(countText.implicitWidth + height * 0.45))
+    radius: height / 2
+    anchors.right: art.right
+    anchors.top: art.top
+    anchors.rightMargin: Math.round(-height * 0.2)
+    anchors.topMargin: Math.round(-height * 0.2)
+    color: Color.accent
+    border.width: 1
+    border.color: Color.popups.background
+
+    Text {
+      id: countText
+      anchors.centerIn: parent
+      text: cell.wins.length
+      color: Color.popups.background
+      font.family: Style.font.resolvedFamily
+      font.pixelSize: Math.round(parent.height * 0.68)
+      font.bold: true
+    }
   }
 }

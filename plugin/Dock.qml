@@ -128,6 +128,27 @@ Item {
     dock: root
   }
 
+  // Hovering a grouped icon focuses nothing by default — the stack opens
+  // and a click picks the window. hoverActivate:true focuses on row-hover
+  // instead, the full macOS behaviour, off because hover-focus steals
+  // focus from wherever you were typing.
+  readonly property bool hoverActivate: flag("hoverActivate", false)
+
+  WindowStack {
+    id: windowStack
+    dock: root
+  }
+
+  function openStack(cell) {
+    if (contextMenu.open || dragging) return
+    windowStack.openFor(cell)
+  }
+
+  function stackReleased() {
+    held = false
+    if (!wantOpen) hideTimer.restart()
+  }
+
   function openMenu(cell) { contextMenu.openFor(cell) }
 
   // Live DockItem instances, for IPC-driven actions (a keybinding or a
@@ -644,6 +665,20 @@ Item {
     }
 
     function menuClose(): string { contextMenu.close(); return "ok" }
+
+    // Same pointer-free access for the window stack.
+    function stack(slot: string): string {
+      var i = Math.round(Number(slot)) - 1
+      if (!(i >= 0 && i < root.displayItems.length)) return "no such slot"
+      var cell = root.cellAt(i)
+      if (!cell) return "no cell"
+      if (root.windowsFor(root.displayItems[i]).length < 2) return "not a group"
+      root.open()
+      root.openStack(cell)
+      return "ok"
+    }
+
+    function stackClose(): string { windowStack.close(); return "ok" }
 
     function settingsClose(): string {
       if (settingsLoader.item) settingsLoader.item.close()

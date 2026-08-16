@@ -100,6 +100,39 @@ Item {
 
   readonly property var items: Array.isArray(config.items) ? config.items : []
 
+  // -------------------------------------------------------------- running
+  //
+  // The v2 half of the dock: which items have live windows, and which live
+  // windows belong to no item. See RunningModel.qml for the matching rules.
+
+  readonly property bool showRunning: flag("showRunning", true)
+  readonly property string runningIndicator:
+    (config.runningIndicator === "line" || config.runningIndicator === "none")
+      ? String(config.runningIndicator) : "dot"
+
+  RunningModel {
+    id: running
+    dock: root
+    pinnedItems: root.items
+  }
+
+  function windowsFor(item) { return running.windowsFor(item) }
+
+  // What the dock actually renders: the pinned items, then — while anything
+  // unpinned is running — a divider and the running section. The divider is
+  // derived exactly like the section is; neither is ever saved.
+  readonly property var displayItems: {
+    var out = shownItems.slice()
+    if (showRunning) {
+      var ex = running.extras
+      if (ex.length > 0) {
+        out.push({ __divider: true })
+        out = out.concat(ex)
+      }
+    }
+    return out
+  }
+
   // ------------------------------------------------------ conditional items
   //
   // An item may carry a `when` command; it occupies a slot only while that
@@ -135,7 +168,7 @@ Item {
     return out
   }
 
-  readonly property bool active: shownItems.length > 0
+  readonly property bool active: displayItems.length > 0
 
   function evaluateConditions() {
     if (conditionIndices.length === 0) return
@@ -260,12 +293,13 @@ Item {
   readonly property var tipBorder: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, Math.max(1, Style.space(1)))
 
   function cellWidth(item) {
-    return Util.isPlainObject(item) && item.spacer === true ? root.ruleWidth : root.slot
+    return Util.isPlainObject(item) && (item.spacer === true || item.__divider === true)
+      ? root.ruleWidth : root.slot
   }
 
   readonly property int contentWidth: {
     var total = 0
-    var list = shownItems
+    var list = displayItems
     for (var i = 0; i < list.length; i++) total += cellWidth(list[i])
     return total + Math.max(0, list.length - 1) * gap
   }
@@ -373,7 +407,7 @@ Item {
   function hitAt(card, row, cardX, cardY) {
     var inRow = row.mapFromItem(card, cardX, cardY)
     var hit = row.childAt(inRow.x, inRow.y)
-    return (hit && hit.index !== undefined && !hit.isSpacer) ? hit.index : -2
+    return (hit && hit.index !== undefined && !hit.isRule) ? hit.index : -2
   }
 
   function openSettings() {
@@ -414,6 +448,24 @@ Item {
         active: root.active,
         items: root.items.length,
         shown: root.shownItems.length,
+        display: root.displayItems.length,
+        showRunning: root.showRunning,
+        runningIndicator: root.runningIndicator,
+        running: (function() {
+          var out = []
+          var ex = running.extras
+          for (var i = 0; i < ex.length; i++)
+            out.push(ex[i].appId + ":" + root.windowsFor(ex[i]).length)
+          return out
+        })(),
+        pinnedRunning: (function() {
+          var out = []
+          for (var i = 0; i < root.items.length; i++) {
+            var n = root.windowsFor(root.items[i]).length
+            if (n > 0) out.push(root.itemLabel(root.items[i], root.desktopEntry(root.items[i])) + ":" + n)
+          }
+          return out
+        })(),
         conditions: root.conditionResults,
         revealed: root.revealed,
         hotspotHovers: root.hotspotHovers,
@@ -482,6 +534,17 @@ Item {
 
   function activate(item, entry) {
     if (!Util.isPlainObject(item)) return
+
+    // Anything with a live window focuses it — most-recently-used first,
+    // wherever its workspace is — rather than launching a duplicate. A
+    // second copy is one right-click away; a lost window never is.
+    var wins = root.windowsFor(item)
+    if (wins.length > 0) {
+      if (root.flag("hideOnLaunch", true)) root.close()
+      wins[0].activate()
+      return
+    }
+
     if (root.flag("hideOnLaunch", true)) root.close()
 
     if (item.exec) {
@@ -674,7 +737,7 @@ Item {
             spacing: root.gap
 
             Repeater {
-              model: root.shownItems
+              model: root.displayItems
 
               // The slot itself lives in DockItem.qml; Repeater fills
               // modelData/index, the root comes along explicitly.

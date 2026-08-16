@@ -16,8 +16,16 @@ Item {
   required property int index
 
   readonly property bool isSpacer: Util.isPlainObject(modelData) && modelData.spacer === true
-  readonly property var entry: dock.desktopEntry(modelData)
+  // The derived rule between the pinned and running sections. Drawn like a
+  // spacer, slightly stronger, and just as inert.
+  readonly property bool isDivider: Util.isPlainObject(modelData) && modelData.__divider === true
+  readonly property bool isRule: isSpacer || isDivider
+  // A synthesized running-section item (see RunningModel.extras).
+  readonly property bool isRunning: Util.isPlainObject(modelData) && modelData.__running === true
+  readonly property var entry: isRunning ? (modelData.__entry || null) : dock.desktopEntry(modelData)
   readonly property string label: dock.itemLabel(modelData, entry)
+  // This item's live windows, MRU-first. Empty for launch-only items.
+  readonly property var wins: isRule ? [] : dock.windowsFor(modelData)
   // A Nerd Font glyph standing in for an icon file. Plenty of worthwhile
   // dock entries — a script, an RDP session, a kill switch — have no icon
   // on disk to point at.
@@ -52,18 +60,18 @@ Item {
   height: dock.slot
 
   Rectangle {
-    visible: cell.isSpacer
+    visible: cell.isRule
     anchors.centerIn: parent
     width: cell.dock.ruleWidth
     height: Math.round(cell.dock.slot * 0.6)
-    color: Util.alpha(Color.popups.text, 0.25)
+    color: Util.alpha(Color.popups.text, cell.isDivider ? 0.4 : 0.25)
   }
 
   // Tile and artwork share one parent so the hover magnify scales them
   // together instead of the icon sliding around inside a stationary tile.
   Item {
     id: art
-    visible: !cell.isSpacer
+    visible: !cell.isRule
     anchors.centerIn: parent
     width: cell.dock.slot
     height: cell.dock.slot
@@ -124,7 +132,7 @@ Item {
       width: art.box
       height: art.box
       opacity: cell.dock.iconOpacity
-      source: (cell.isSpacer || cell.glyph !== "") ? "" : cell.dock.itemIcon(cell.modelData, cell.entry)
+      source: (cell.isRule || cell.glyph !== "") ? "" : cell.dock.itemIcon(cell.modelData, cell.entry)
       // Oversampled so the hover scale stays crisp on raster icons.
       sourceSize.width: cell.dock.slot * 2
       sourceSize.height: cell.dock.slot * 2
@@ -137,7 +145,7 @@ Item {
 
   HoverHandler {
     id: iconHover
-    enabled: !cell.isSpacer
+    enabled: !cell.isRule
     cursorShape: Qt.PointingHandCursor
 
     onHoveredChanged: {
@@ -156,7 +164,22 @@ Item {
   }
 
   TapHandler {
-    enabled: !cell.isSpacer
+    enabled: !cell.isRule
     onTapped: cell.dock.activate(cell.modelData, cell.entry)
+  }
+
+  // The running indicator: lit for any item with a live window — pinned or
+  // not — in the theme accent. "dot" and "line" are the two shapes; "none"
+  // turns it off. It sits inside the slot so lighting up never reflows the
+  // dock.
+  Rectangle {
+    visible: !cell.isRule && cell.dock.runningIndicator !== "none" && cell.wins.length > 0
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: 2
+    width: cell.dock.runningIndicator === "line" ? Math.round(cell.dock.slot * 0.38) : 5
+    height: cell.dock.runningIndicator === "line" ? 2 : 5
+    radius: cell.dock.runningIndicator === "line" ? 1 : 2.5
+    color: Color.accent
   }
 }

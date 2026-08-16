@@ -92,6 +92,7 @@ Settings on the plugin entry:
 | `magnify` | macOS-style hover magnification |
 | `tiles`, `tileStyle`, `tileOpacity`, `tileRadius` | Draw items as themed tiles |
 | `cornerRadius`, `edgeGap` | Shape and offset of the dock card |
+| `fullWidth` | Stretch the card across the monitor, edge gap on all sides (icons stay centred) |
 | `revealDelay`, `hideDelay` | Hover-in and hover-out delays in ms |
 | `hotspotFullWidth`, `hotspotHeight` | Size of the bottom-edge trigger zone |
 | `hideOnLaunch` | Hide the dock after activating an item |

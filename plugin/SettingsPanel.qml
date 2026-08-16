@@ -693,6 +693,7 @@ Item {
               { key: "revealDelay", label: "REVEAL DELAY (MS)", type: "num", from: 0, to: 600, step: 10, dflt: 90 },
               { key: "hideDelay", label: "HIDE DELAY (MS)", type: "num", from: 0, to: 1500, step: 25, dflt: 350 },
               { key: "hotspotHeight", label: "HOTSPOT HEIGHT", type: "num", from: 1, to: 12, step: 1, dflt: 2 },
+              { key: "fullWidth", label: "Full-width dock", type: "bool", dflt: false },
               { key: "labels", label: "Labels on hover", type: "bool", dflt: true },
               { key: "magnify", label: "Hover magnify", type: "bool", dflt: true },
               { key: "tiles", label: "Tiles behind icons", type: "bool", dflt: false },

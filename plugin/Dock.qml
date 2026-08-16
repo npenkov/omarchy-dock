@@ -501,6 +501,10 @@ Item {
     return total + Math.max(0, list.length - 1) * gap
   }
 
+  // Content-sized card width. With `fullWidth` the card stretches to the
+  // monitor instead — computed per window, since monitors differ — and
+  // this value becomes its floor.
+  readonly property bool fullWidth: flag("fullWidth", false)
   readonly property int cardWidth: Math.round(Border.left(dockBorder) + pad + contentWidth + pad + Border.right(dockBorder))
   readonly property int cardHeight: Math.round(Border.top(dockBorder) + pad + slot + pad + Border.bottom(dockBorder))
 
@@ -850,11 +854,14 @@ Item {
 
       anchors {
         bottom: true
-        left: root.hotspotFullWidth
-        right: root.hotspotFullWidth
+        // A full-width dock gets a full-width trigger zone regardless of
+        // the hotspot setting — a centred sliver under a monitor-wide
+        // card would be a guessing game.
+        left: root.hotspotFullWidth || root.fullWidth
+        right: root.hotspotFullWidth || root.fullWidth
       }
 
-      implicitWidth: root.hotspotFullWidth ? 0 : root.cardWidth
+      implicitWidth: (root.hotspotFullWidth || root.fullWidth) ? 0 : root.cardWidth
       implicitHeight: root.hotspotHeight
 
       // The handler needs an Item to attach to; a pointer handler parented
@@ -910,8 +917,16 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
       // Bottom only: layer-shell centres a surface on any axis it is not
-      // anchored to, which is exactly the placement we want.
+      // anchored to, which is exactly the placement we want. Full-width
+      // anchors both sides instead, and the card takes the monitor's
+      // width minus the edge gap on either flank.
       anchors.bottom: true
+      anchors.left: root.fullWidth
+      anchors.right: root.fullWidth
+
+      readonly property int cardW: root.fullWidth
+        ? Math.max(root.cardWidth, dockWindow.width - root.edgeGap * 2)
+        : root.cardWidth
 
       implicitWidth: root.windowWidth
       implicitHeight: root.windowHeight
@@ -942,9 +957,9 @@ Item {
       // top of the hover area and swallowed everything aimed at it.
       Item {
         id: hitArea
-        x: Math.round((dockWindow.width - root.cardWidth) / 2)
+        x: Math.round((dockWindow.width - dockWindow.cardW) / 2)
         y: root.labelBand
-        width: root.cardWidth
+        width: dockWindow.cardW
         height: root.cardHeight + root.edgeGap
 
         HoverHandler {
@@ -965,7 +980,7 @@ Item {
           id: card
           x: 0
           y: 0
-          width: root.cardWidth
+          width: dockWindow.cardW
           height: root.cardHeight
           radius: root.cardRadius
           // The popup surface, not the raw palette background: a theme that

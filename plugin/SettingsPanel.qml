@@ -328,11 +328,19 @@ Item {
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     anchors { top: true; bottom: true; left: true; right: true }
 
-    // Scrim: click outside the card closes.
+    // Scrim: click outside the card closes. The bounds check matters — a
+    // TapHandler takes only a passive grab, so card-area taps reach this
+    // handler too; "the card swallows clicks" is not a thing passive
+    // handlers can do for us.
     Rectangle {
       anchors.fill: parent
       color: Util.alpha(Color.background, 0.55)
-      TapHandler { onTapped: root.close() }
+      TapHandler {
+        onTapped: function(eventPoint) {
+          var p = card.mapFromItem(null, eventPoint.scenePosition.x, eventPoint.scenePosition.y)
+          if (p.x < 0 || p.y < 0 || p.x > card.width || p.y > card.height) root.close()
+        }
+      }
     }
 
     Item {
@@ -353,9 +361,6 @@ Item {
       radius: Style.cornerRadius
       color: Util.alpha(Color.popups.background, 0.99)
       borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
-
-      // Swallow clicks so they don't reach the scrim.
-      TapHandler { }
 
       readonly property int pad: Style.spacing.panelPadding
       readonly property int headerH: Math.round(Style.font.body + Style.spacing.lg * 2)

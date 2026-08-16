@@ -184,14 +184,14 @@ Item {
     onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x)
   }
 
-  // Hover dwell for the window stack: a grouped icon (2+ windows) held
+  // Hover dwell for the window stack: a running icon (1+ windows) held
   // under the pointer for a beat opens the preview stack. Leaving before
   // the dwell fires cancels it.
   Timer {
     id: stackDwell
     interval: 300
     onTriggered: {
-      if (iconHover.hovered && cell.wins.length > 1 && !cell.dock.dragging)
+      if (iconHover.hovered && cell.wins.length > 0 && !cell.dock.dragging && !cell.dock.menuOpen)
         cell.dock.openStack(cell)
     }
   }
@@ -202,7 +202,9 @@ Item {
     cursorShape: Qt.PointingHandCursor
 
     onHoveredChanged: {
-      if (hovered && cell.wins.length > 1) stackDwell.restart()
+      if (hovered) cell.dock.onIconHovered(cell)
+      if (hovered && cell.wins.length > 0 && !cell.dock.menuOpen && !cell.dock.stackOpen)
+        stackDwell.restart()
       else stackDwell.stop()
       if (cell.dock.dragging) return
       if (hovered) {
@@ -224,7 +226,10 @@ Item {
     // The pin badge sits inside this handler's area; a press there is the
     // badge's, not a launch. Checked by hover rather than an exclusive
     // grab — grabs are how the v1 right-click menu broke.
-    onTapped: if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
+    onTapped: {
+      if (cell.dock.menuOpen) cell.dock.closeMenu()
+      if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
+    }
   }
 
   // Pin badge: running-section items only, revealed by hover. One click
@@ -271,7 +276,10 @@ Item {
   TapHandler {
     enabled: !cell.isRule
     acceptedButtons: Qt.RightButton
-    onTapped: cell.dock.openMenu(cell)
+    onTapped: {
+      stackDwell.stop()
+      cell.dock.openMenu(cell)
+    }
   }
 
   // The running indicator: lit for any item with a live window — pinned or

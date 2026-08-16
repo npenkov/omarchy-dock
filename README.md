@@ -13,9 +13,10 @@ icons to reorder, and drag across the divider to pin or unpin. App icons
 can be colorized to the theme accent so arbitrary apps sit next to your
 curated glyphs as one set.
 
-Multiple windows of one app collapse to a single icon with a count badge;
-holding the pointer over it for a beat opens a vertical stack of **live
-window previews** — click one to focus it. Set `hoverActivate: true` to
+Multiple windows of one app collapse to a single icon with a count badge.
+Holding the pointer over a running icon for a beat opens a vertical stack of
+**live window previews** — even for a single window — click one to focus it,
+or hit the close badge on a preview to close that window. Set `hoverActivate: true` to
 focus windows as you hover the stack, full macOS style (off by default:
 hover-focus steals focus from wherever you were typing).
 

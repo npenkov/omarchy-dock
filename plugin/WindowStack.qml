@@ -5,16 +5,12 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
-// The window stack: hover-dwell on a grouped icon (more than one window of
+// The window stack: hover-dwell on a running icon (one or more windows of
 // one app) opens a vertical run of live previews above the tile — one
 // ScreencopyView per window, streaming only while the stack is open, with
 // the window title beneath. Click focuses that window. `hoverActivate`
 // makes row-hover focus it macOS-style; it defaults off, because
 // hover-focus steals focus from wherever you were typing.
-//
-// Same anchoring and grab scheme as the context menu, plus hover-out: the
-// stack also closes when the pointer has left both it and the dock for a
-// beat.
 PopupWindow {
   id: stack
 
@@ -24,18 +20,40 @@ PopupWindow {
   property var anchorCell: null
   property bool open: false
 
-  // Re-evaluated live so a window closing under the stack drops its row.
-  readonly property var wins: open && item ? dock.windowsFor(item) : []
+  // Snapshotted so the Repeater is not rebuilt every time windowsFor()
+  // allocates a new array (same bug as the context-menu hover flicker).
+  property var wins: []
+  readonly property var liveWins: open && item ? dock.windowsFor(item) : []
+  onLiveWinsChanged: {
+    // Don't collapse wins while hiding — that shrinks the still-mapped
+    // popup to an empty card (the flash on a launch-only icon).
+    if (!open) return
+    var next = liveWins || []
+    if (sameRefs(wins, next)) return
+    if (next.length < 1) {
+      close()
+      return
+    }
+    wins = next.slice()
+  }
 
-  // A window closing can collapse the group to one — nothing left to
-  // stack, so fold.
-  onWinsChanged: if (open && wins.length < 2) close()
+  function sameRefs(a, b) {
+    if (!a || !b || a.length !== b.length) return false
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+    return true
+  }
 
   function openFor(cell) {
+    var next = dock.windowsFor(cell.modelData) || []
+    if (next.length < 1) {
+      close()
+      return
+    }
     stack.item = cell.modelData
     stack.anchorCell = cell
     stack.open = true
-    stack.dock.held = true
+    stack.wins = next.slice()
+    stack.dock.holdForPopup()
   }
 
   function close() {
@@ -44,7 +62,7 @@ PopupWindow {
     stack.dock.stackReleased()
   }
 
-  visible: open
+  visible: open && wins.length > 0
   color: "transparent"
 
   readonly property int pad: Style.spacing.sm
@@ -54,24 +72,20 @@ PopupWindow {
   readonly property int shotH: Math.round(shotW * 0.6)
   readonly property int rowH: shotH + Math.round(Style.font.bodySmall + Style.spacing.md * 2)
 
-  implicitWidth: Math.round(shotW + pad * 4 + Border.left(stackBorder) + Border.right(stackBorder))
-  implicitHeight: Math.round(wins.length * (rowH + pad * 2) + Math.max(0, wins.length - 1) * Style.spacing.sm
-                             + pad * 2 + Border.top(stackBorder) + Border.bottom(stackBorder))
+  implicitWidth: wins.length > 0
+    ? Math.round(shotW + pad * 4 + Border.left(stackBorder) + Border.right(stackBorder))
+    : 0
+  implicitHeight: wins.length > 0
+    ? Math.round(wins.length * (rowH + pad * 2) + Math.max(0, wins.length - 1) * Style.spacing.sm
+                 + pad * 2 + Border.top(stackBorder) + Border.bottom(stackBorder))
+    : 0
 
-  HyprlandFocusGrab {
-    active: stack.open
-    windows: {
-      var out = [stack]
-      var w = stack.anchorCell ? stack.anchorCell.QsWindow.window : null
-      if (w) out.push(w)
-      return out
-    }
-    onCleared: stack.close()
-  }
+  // No focus grab — a grab on the dock blocks icon hover, which is how
+  // Win11-style switch/dismiss is supposed to work. Hover-out + the dock's
+  // onIconHovered handle lifetime.
 
   // Hover-out dismissal: once the pointer has left both the stack and the
-  // dock, fold after a beat. The grab covers clicks; this covers drifting
-  // away.
+  // dock, fold after a beat.
   Timer {
     id: leaveTimer
     interval: 350
@@ -172,10 +186,49 @@ PopupWindow {
 
           TapHandler {
             onTapped: {
+              if (closeHover.hovered) return
               var w = winRow.modelData
               stack.close()
               if (w) w.activate()
               if (stack.dock.flag("hideOnLaunch", true)) stack.dock.close()
+            }
+          }
+
+          // Close badge, same language as the pin badge on a running icon:
+          // circle, top-right, hover-revealed. Clicking it sends a close
+          // request to that window; the stack stays up unless it was the last.
+          Rectangle {
+            id: closeBadge
+            readonly property bool shown: rowHover.hovered || closeHover.hovered
+            visible: opacity > 0
+            opacity: shown ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+            z: 2
+
+            width: Math.max(18, Math.round(stack.pad * 2.4))
+            height: width
+            radius: width / 2
+            anchors.right: shotFrame.right
+            anchors.top: shotFrame.top
+            // Half-out so the chip sits on the corner, not inside the shot.
+            anchors.rightMargin: Math.round(-width * 0.5)
+            anchors.topMargin: Math.round(-height * 0.5)
+            color: closeHover.hovered ? Color.accent : Util.alpha(Color.accent, 0.9)
+            border.width: 1
+            border.color: Color.popups.background
+
+            Text {
+              anchors.centerIn: parent
+              text: "󰅖"
+              color: Color.popups.background
+              font.family: Style.font.resolvedFamily
+              font.pixelSize: Math.round(parent.width * 0.62)
+            }
+
+            HoverHandler { id: closeHover; enabled: closeBadge.shown || rowHover.hovered }
+            TapHandler {
+              enabled: closeBadge.shown || rowHover.hovered
+              onTapped: if (winRow.modelData) winRow.modelData.close()
             }
           }
         }

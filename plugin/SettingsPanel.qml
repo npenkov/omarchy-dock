@@ -367,9 +367,17 @@ Item {
       readonly property int footerH: Math.round(Style.font.bodySmall + Style.spacing.lg * 3)
       readonly property int listW: Style.space(210)
 
+      // A picker sheet drawn over these panes does NOT stop their tap
+      // handlers receiving the same clicks — passive grabs deliver to
+      // every handler under the point, stacking order be damned. That
+      // was a glyph pick also selecting whichever list row sat beneath
+      // the pointer. visible:false is what actually removes an item from
+      // input delivery, so the panes vanish while a picker is up.
+
       // ------------------------------------------------------------ header
       Item {
         id: header
+        visible: root.picker === ""
         x: card.pad; y: Style.spacing.md
         width: card.width - card.pad * 2
         height: card.headerH
@@ -400,6 +408,7 @@ Item {
       // ------------------------------------------------------- item list
       Item {
         id: listPane
+        visible: root.picker === ""
         x: card.pad
         y: header.y + header.height + Style.spacing.md
         width: card.listW
@@ -491,6 +500,7 @@ Item {
       // ------------------------------------------------------ editor pane
       Flickable {
         id: form
+        visible: root.picker === ""
         x: card.pad + card.listW + Style.spacing.lg * 2
         y: listPane.y
         width: card.width - x - card.pad
@@ -758,6 +768,7 @@ Item {
       }
 
       Item {
+        visible: root.picker === ""
         x: card.pad
         y: card.height - card.footerH + Style.spacing.md
         width: card.width - card.pad * 2

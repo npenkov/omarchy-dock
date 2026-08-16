@@ -52,6 +52,7 @@ Item {
   function close() {
     opened = false
     picker = ""
+    dock.onSettingsClosed()
   }
 
   function select(i) {
@@ -324,7 +325,9 @@ Item {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-dock-settings"
-    WlrLayershell.layer: WlrLayer.Overlay
+    // Top sits under the dock's Overlay, so the bar stays visible and
+    // reflects live edits while this is open.
+    WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     anchors { top: true; bottom: true; left: true; right: true }
 
@@ -356,6 +359,7 @@ Item {
     BorderSurface {
       id: card
       anchors.centerIn: parent
+      anchors.verticalCenterOffset: -Math.round((dock.cardHeight + dock.edgeGap + dock.labelBand) / 2)
       width: Math.min(Style.space(640), panel.width - Style.space(40))
       height: Math.min(Style.space(430), panel.height - Style.space(40))
       radius: Style.cornerRadius

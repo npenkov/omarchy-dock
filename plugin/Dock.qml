@@ -721,9 +721,19 @@ Item {
   }
 
   function openSettings() {
-    root.close()
+    contextMenu.close()
+    windowStack.close()
     settingsLoader.active = true
     if (settingsLoader.item) settingsLoader.item.open()
+    // Stay revealed so live edits are visible behind/below the settings card.
+    holdForPopup()
+    revealed = true
+  }
+
+  function onSettingsClosed() {
+    if (popupOpen) return
+    held = false
+    if (!wantOpen) hideTimer.restart()
   }
 
   function open() {

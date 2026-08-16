@@ -68,6 +68,9 @@ Item {
   width: dock.cellWidth(modelData)
   height: dock.slot
 
+  Component.onCompleted: dock.registerCell(cell)
+  Component.onDestruction: dock.unregisterCell(cell)
+
   Rectangle {
     visible: cell.isRule
     anchors.centerIn: parent
@@ -172,6 +175,15 @@ Item {
   TapHandler {
     enabled: !cell.isRule
     onTapped: cell.dock.activate(cell.modelData, cell.entry)
+  }
+
+  // Separate handler, left at the default (passive) gesture policy — the
+  // v1 right-click menu died because ReleaseWithinBounds takes an
+  // exclusive grab and starved the per-icon tap handlers.
+  TapHandler {
+    enabled: !cell.isRule
+    acceptedButtons: Qt.RightButton
+    onTapped: cell.dock.openMenu(cell)
   }
 
   // The running indicator: lit for any item with a live window — pinned or

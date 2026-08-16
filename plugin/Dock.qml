@@ -123,6 +123,55 @@ Item {
     pinnedItems: root.items
   }
 
+  ContextMenu {
+    id: contextMenu
+    dock: root
+  }
+
+  function openMenu(cell) { contextMenu.openFor(cell) }
+
+  // Live DockItem instances, for IPC-driven actions (a keybinding or a
+  // test opening the menu without a pointer). Mutated in place — nothing
+  // binds to it.
+  property var cells: []
+  function registerCell(cell) { cells.push(cell) }
+  function unregisterCell(cell) {
+    var i = cells.indexOf(cell)
+    if (i >= 0) cells.splice(i, 1)
+  }
+
+  function cellAt(index) {
+    var match = null
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i].index !== index) continue
+      match = cells[i]
+      // Prefer the copy on the dock's current target screen.
+      var w = cells[i].QsWindow.window
+      if (w && String(w.screen ? w.screen.name : "") === root.targetScreen) return cells[i]
+    }
+    return match
+  }
+
+  // Called by the menu when it closes: hand the reveal state back to the
+  // pointer. If it already left, start the normal hide countdown.
+  function menuReleased() {
+    held = false
+    if (!wantOpen) hideTimer.restart()
+  }
+
+  // Pin/unpin route through the configurator CLI — the one validated
+  // shell.json writer — and the config hot-reload brings the change back.
+  function requestPin(item) {
+    if (!Util.isPlainObject(item) || !item.appId) return
+    Util.execDetached("omarchy-dock-config pin " + Util.shellQuote(String(item.appId)))
+  }
+
+  function requestUnpin(item) {
+    var idx = items.indexOf(item)
+    if (idx < 0) return
+    Util.execDetached("omarchy-dock-config unpin " + idx)
+  }
+
   function windowsFor(item) { return running.windowsFor(item) }
 
   // What the dock actually renders: the pinned items, then — while anything
@@ -450,12 +499,28 @@ Item {
 
     function settings(): string { root.openSettings(); return "ok" }
 
+    // Open the context menu on a display slot (1-based, counting rules),
+    // so a test or keybinding can reach it without the pointer.
+    function menu(slot: string): string {
+      var i = Math.round(Number(slot)) - 1
+      if (!(i >= 0 && i < root.displayItems.length)) return "no such slot"
+      var cell = root.cellAt(i)
+      if (!cell) return "no cell"
+      root.open()
+      root.openMenu(cell)
+      return "ok"
+    }
+
+    function menuClose(): string { contextMenu.close(); return "ok" }
+
     function state(): string {
       return JSON.stringify({
         active: root.active,
         items: root.items.length,
         shown: root.shownItems.length,
         display: root.displayItems.length,
+        menuOpen: contextMenu.open,
+        menuRows: contextMenu.rows.length,
         showRunning: root.showRunning,
         runningIndicator: root.runningIndicator,
         running: (function() {
@@ -552,6 +617,13 @@ Item {
       return
     }
 
+    launchNew(item, entry)
+  }
+
+  // The plain launch path — v1's activate. Also what the context menu's
+  // New Window uses, which is why it ignores live windows.
+  function launchNew(item, entry) {
+    if (!Util.isPlainObject(item)) return
     if (root.flag("hideOnLaunch", true)) root.close()
 
     if (item.exec) {

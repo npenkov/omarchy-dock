@@ -23,8 +23,18 @@ OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 
 # ----------------------------------------------------------------- plumbing
 
+# The TUI paths always have gum; the non-interactive subcommands the dock
+# itself shells out to must not need it, so errors degrade to plain text.
+err() {
+  if command -v gum >/dev/null 2>&1 && [[ -t 2 ]]; then
+    gum style --foreground 1 "$1" >&2
+  else
+    echo "error: $1" >&2
+  fi
+}
+
 die() {
-  gum style --foreground 1 "$1" >&2
+  err "$1"
   exit 1
 }
 
@@ -37,20 +47,22 @@ require() {
 
 # Write a mutated config atomically, but only if the result is still valid
 # JSON that keeps the dock entry intact. A broken shell.json costs you the
-# whole bar, not just the dock.
+# whole bar, not just the dock. Extra arguments are passed to jq, for
+# callers that need --arg/--argjson bindings in the expression.
 apply() {
   local expr=$1 tmp
+  shift
   tmp=$(mktemp "$CFG.XXXXXX") || return 1
 
-  if ! jq "$DOCK |= ($expr)" "$CFG" >"$tmp" 2>/dev/null; then
+  if ! jq "$@" "$DOCK |= ($expr)" "$CFG" >"$tmp" 2>/dev/null; then
     rm -f "$tmp"
-    gum style --foreground 1 "Update failed — nothing changed."
+    err "Update failed — nothing changed."
     return 1
   fi
 
   if ! jq -e "$DOCK | .id" "$tmp" >/dev/null 2>&1; then
     rm -f "$tmp"
-    gum style --foreground 1 "Update would have dropped the dock entry — nothing changed."
+    err "Update would have dropped the dock entry — nothing changed."
     return 1
   fi
 
@@ -703,6 +715,132 @@ preview() {
   sleep 3
   omarchy-shell rdf.dock hide >/dev/null 2>&1
 }
+
+# -------------------------------------------------- programmatic subcommands
+#
+# The dock's own UI (pin badge, context menu, drag, settings panel) drives
+# shell.json through these rather than writing QML-side, so apply()'s
+# staged-tempfile validation stays the only writer. Indices are 0-based —
+# these are a programmatic surface, matching items[] as the plugin reads it.
+
+# Resolve an appId to a desktop entry id the way the plugin matches windows,
+# roughly in reverse: exact basename, then case-insensitive basename or
+# reverse-DNS tail, then StartupWMClass.
+find_entry_for_appid() {
+  local appid=$1 dir file id
+  local tail=${appid##*.}
+  local dirs=("$HOME/.local/share/applications" /usr/share/applications)
+
+  for dir in "${dirs[@]}"; do
+    [[ -f "$dir/$appid.desktop" ]] && { echo "$appid"; return 0; }
+  done
+
+  local lc_appid=${appid,,} lc_tail=${tail,,}
+  for dir in "${dirs[@]}"; do
+    [[ -d $dir ]] || continue
+    for file in "$dir"/*.desktop; do
+      [[ -e $file ]] || continue
+      id=$(basename "$file" .desktop)
+      local lc_id=${id,,}
+      if [[ $lc_id == "$lc_appid" || $lc_id == "$lc_tail" || ${lc_id##*.} == "$lc_appid" ]]; then
+        echo "$id"; return 0
+      fi
+    done
+  done
+
+  for dir in "${dirs[@]}"; do
+    [[ -d $dir ]] || continue
+    file=$(grep -ilE "^StartupWMClass=${appid}$" "$dir"/*.desktop 2>/dev/null | head -1)
+    [[ -n $file ]] && { basename "$file" .desktop; return 0; }
+  done
+
+  return 1
+}
+
+valid_index() {
+  local idx=$1 count
+  [[ $idx =~ ^[0-9]+$ ]] || return 1
+  count=$(item_count)
+  [[ $idx -lt ${count:-0} ]]
+}
+
+cmd_pin() {
+  local appid=$1
+  [[ -n $appid ]] || die "usage: omarchy-dock-config pin <appId>"
+
+  # Belt and braces — the dock only offers Pin on unclaimed apps, but the
+  # CLI can be called by hand.
+  if jq -e --arg k "${appid,,}" "$DOCK | any(.items[]?;
+        ([.appId // empty] | flatten | map(ascii_downcase) | index(\$k) != null)
+        or ((.desktop // empty | ascii_downcase | sub(\"\\\\.desktop$\"; \"\")) == \$k))" \
+      "$CFG" >/dev/null 2>&1; then
+    echo "already pinned: $appid"
+    return 0
+  fi
+
+  local item entry
+  if entry=$(find_entry_for_appid "$appid"); then
+    item=$(jq -cn --arg d "$entry" '{desktop: $d}')
+  else
+    # No desktop entry to launch by — pin as a match-only item; the
+    # settings UI can fill in an exec later.
+    item=$(jq -cn --arg a "$appid" '{appId: $a, label: $a}')
+  fi
+
+  apply '.items += [$item]' --argjson item "$item" || exit 1
+  echo "pinned: $appid -> $item"
+}
+
+cmd_unpin() {
+  local idx=$1
+  valid_index "$idx" || die "usage: omarchy-dock-config unpin <index> (0-based, have $(item_count) items)"
+  local label
+  label=$(item_label "$idx")
+  apply "del(.items[$idx])" || exit 1
+  echo "unpinned [$idx]: $label"
+}
+
+cmd_move() {
+  local from=$1 to=$2
+  valid_index "$from" || die "usage: omarchy-dock-config move <from> <to> (0-based)"
+  [[ $to =~ ^[0-9]+$ ]] || die "usage: omarchy-dock-config move <from> <to> (0-based)"
+  local count
+  count=$(item_count)
+  [[ $to -lt $count ]] || to=$((count - 1))
+  apply ".items |= (.[$from] as \$x | del(.[$from]) | .[:$to] + [\$x] + .[$to:])" || exit 1
+  echo "moved: $from -> $to"
+}
+
+cmd_set_item() {
+  local idx=$1 json=$2
+  valid_index "$idx" || die "usage: omarchy-dock-config set-item <index> <json> (0-based)"
+  echo "$json" | jq -e 'type == "object"' >/dev/null 2>&1 \
+    || die "set-item: not a JSON object: $json"
+  apply ".items[$idx] = \$item" --argjson item "$(echo "$json" | jq -c .)" || exit 1
+  echo "set [$idx]: $(echo "$json" | jq -c .)"
+}
+
+if [[ $# -gt 0 ]]; then
+  require jq
+  [[ -f $CFG ]] || die "No shell.json at $CFG"
+  case $1 in
+    pin)      shift; cmd_pin "${1:-}" ;;
+    unpin)    shift; cmd_unpin "${1:-}" ;;
+    move)     shift; cmd_move "${1:-}" "${2:-}" ;;
+    set-item) shift; cmd_set_item "${1:-}" "${2:-}" ;;
+    -h | --help)
+      cat <<'EOF'
+omarchy-dock-config             interactive configurator (gum TUI)
+omarchy-dock-config pin <appId>          pin a running app to the dock
+omarchy-dock-config unpin <index>        remove item (0-based)
+omarchy-dock-config move <from> <to>     reorder items (0-based)
+omarchy-dock-config set-item <i> <json>  replace an item wholesale
+EOF
+      ;;
+    *) die "unknown command: $1 (see --help)" ;;
+  esac
+  exit $?
+fi
 
 # ---------------------------------------------------------------------- main
 

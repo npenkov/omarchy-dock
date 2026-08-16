@@ -174,7 +174,48 @@ Item {
 
   TapHandler {
     enabled: !cell.isRule
-    onTapped: cell.dock.activate(cell.modelData, cell.entry)
+    // The pin badge sits inside this handler's area; a press there is the
+    // badge's, not a launch. Checked by hover rather than an exclusive
+    // grab — grabs are how the v1 right-click menu broke.
+    onTapped: if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
+  }
+
+  // Pin badge: running-section items only, revealed by hover. One click
+  // writes the item into items[] through the configurator CLI, and the
+  // config reload moves the icon left of the divider — where it now stays.
+  Rectangle {
+    id: pinBadge
+    readonly property bool shown: cell.isRunning && iconHover.hovered
+    visible: opacity > 0
+    opacity: shown ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+    width: Math.max(15, Math.round(cell.dock.slot * 0.4))
+    height: width
+    radius: width / 2
+    anchors.right: art.right
+    anchors.top: art.top
+    anchors.rightMargin: Math.round(-width * 0.2)
+    anchors.topMargin: Math.round(-height * 0.2)
+    color: pinHover.hovered ? Color.accent : Util.alpha(Color.accent, 0.9)
+    // A hairline of the card colour so the badge reads as sitting on top
+    // of the artwork rather than fused to it.
+    border.width: 1
+    border.color: Color.popups.background
+
+    Text {
+      anchors.centerIn: parent
+      text: "󰐃"
+      color: Color.popups.background
+      font.family: Style.font.resolvedFamily
+      font.pixelSize: Math.round(parent.width * 0.62)
+    }
+
+    HoverHandler { id: pinHover; enabled: pinBadge.shown }
+    TapHandler {
+      enabled: pinBadge.shown
+      onTapped: cell.dock.requestPin(cell.modelData)
+    }
   }
 
   // Separate handler, left at the default (passive) gesture policy — the

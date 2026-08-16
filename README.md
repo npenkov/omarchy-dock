@@ -1,12 +1,21 @@
 # OmarchyDock
 
-An auto-hiding launcher dock for the [Omarchy](https://omarchy.org/) shell.
-Hover the bottom edge of the screen and it slides up; move away and it hides
-again. Items can be full-colour app icons or Nerd Font glyphs, and the whole
-thing follows the current Omarchy theme.
+A macOS-style dock for the [Omarchy](https://omarchy.org/) shell. Hover the
+bottom edge of the screen and it slides up; move away and it hides again.
 
-It ships as a third-party Quickshell plugin (`rdf.dock`) plus an interactive
-configurator, `omarchy-dock-config`.
+Two sections: **pinned** launchers on the left (glyphs or app icons, themed
+tiles), and — after an automatic divider — every **running app that isn't
+pinned**, derived live from the compositor and never written to config.
+Anything running carries an accent indicator; clicking it focuses its most
+recent window, wherever it is. Right-click for New Window, Pin/Unpin,
+per-window focus, and Close. Hover a running app for the pin badge; drag
+icons to reorder, and drag across the divider to pin or unpin. App icons
+can be colorized to the theme accent so arbitrary apps sit next to your
+curated glyphs as one set.
+
+It ships as a third-party Quickshell plugin (`rdf.dock`) plus a settings
+GUI (right-click → Dock Settings…, or double-click the dock background)
+and a terminal configurator, `omarchy-dock-config`.
 
 ## Requirements
 
@@ -67,7 +76,10 @@ Settings on the plugin entry:
 
 | Key | Meaning |
 |-----|---------|
-| `items` | The dock contents; `{"spacer": true}` draws a divider |
+| `items` | The pinned section; `{"spacer": true}` draws a divider |
+| `showRunning` | The running-apps section (default true; false = the v1 dock) |
+| `runningIndicator` | `"dot"` (default), `"line"`, or `"none"` |
+| `tintIcons`, `tintRunning` | Colorize pinned / running app icons to the theme (defaults false / true) |
 | `iconSize` | Icon edge length in px |
 | `labels` | Show a label above the hovered item |
 | `magnify` | macOS-style hover magnification |
@@ -78,8 +90,35 @@ Settings on the plugin entry:
 | `hideOnLaunch` | Hide the dock after activating an item |
 | `showWhenEmpty` | Still reveal when there are no items |
 
-Item keys: `exec`, `desktop`, `glyph`, `icon`, `label`, `iconScale`,
-`spacer`, and `when` (a shell command; the item only shows when it exits 0).
+Item keys: `exec`, `desktop`, `glyph`, `icon`, `label`, `iconScale`, `tint`,
+`appId`, `spacer`, and `when` (a shell command; the item only shows when it
+exits 0).
+
+### How windows are matched to items
+
+The running state keys on the Wayland appId (Hyprland "class"), resolved
+per item as: explicit `appId` (string or array — wins outright), else the
+desktop entry's `StartupWMClass`, else the desktop id itself.
+Case-insensitive, tolerant of reverse-DNS tails.
+
+**Known limitation:** two launchers for the same binary — e.g. chromium
+profiles — open windows with the same appId, and the compositor cannot
+tell them apart. Fix it at the launcher: add `--class=chromium-work` to
+the work profile's `Exec` and set that as the item's `appId`.
+
+### Programmatic CLI
+
+The GUI, pin badge, and drag all persist through `omarchy-dock-config`
+subcommands — one validated writer for shell.json (indices 0-based):
+
+```
+omarchy-dock-config pin <appId> [index]
+omarchy-dock-config unpin <index>
+omarchy-dock-config move <from> <to>
+omarchy-dock-config set-item <index> <json>
+omarchy-dock-config add <json> [index]
+omarchy-dock-config set <key> <json>     # dock-level; null unsets
+```
 
 ## Development
 

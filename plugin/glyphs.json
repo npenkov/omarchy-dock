@@ -1,0 +1,202 @@
+[
+  {
+    "name": "browser (chrome)",
+    "glyph": "󰊯"
+  },
+  {
+    "name": "firefox",
+    "glyph": "󰈹"
+  },
+  {
+    "name": "edge",
+    "glyph": "󰇩"
+  },
+  {
+    "name": "web",
+    "glyph": "󰖟"
+  },
+  {
+    "name": "terminal (console)",
+    "glyph": "󰆍"
+  },
+  {
+    "name": "terminal (prompt)",
+    "glyph": "󰞷"
+  },
+  {
+    "name": "terminal (octicon)",
+    "glyph": ""
+  },
+  {
+    "name": "files (folder)",
+    "glyph": "󰉋"
+  },
+  {
+    "name": "folder open",
+    "glyph": "󰝰"
+  },
+  {
+    "name": "document",
+    "glyph": "󰈙"
+  },
+  {
+    "name": "file",
+    "glyph": "󰈔"
+  },
+  {
+    "name": "vs code",
+    "glyph": "󰨞"
+  },
+  {
+    "name": "git",
+    "glyph": "󰊢"
+  },
+  {
+    "name": "github",
+    "glyph": "󰊤"
+  },
+  {
+    "name": "docker",
+    "glyph": "󰡨"
+  },
+  {
+    "name": "database",
+    "glyph": "󰆼"
+  },
+  {
+    "name": "package",
+    "glyph": "󰏖"
+  },
+  {
+    "name": "remote desktop",
+    "glyph": "󰢹"
+  },
+  {
+    "name": "windows",
+    "glyph": "󰖳"
+  },
+  {
+    "name": "linux",
+    "glyph": "󰌽"
+  },
+  {
+    "name": "apple",
+    "glyph": ""
+  },
+  {
+    "name": "monitor",
+    "glyph": "󰍹"
+  },
+  {
+    "name": "laptop",
+    "glyph": "󰌢"
+  },
+  {
+    "name": "harddisk",
+    "glyph": "󰋊"
+  },
+  {
+    "name": "claude / ai (sparkles)",
+    "glyph": "󰙴"
+  },
+  {
+    "name": "robot",
+    "glyph": "󰚩"
+  },
+  {
+    "name": "message",
+    "glyph": "󰍡"
+  },
+  {
+    "name": "chat",
+    "glyph": "󰭹"
+  },
+  {
+    "name": "email",
+    "glyph": "󰇮"
+  },
+  {
+    "name": "calendar",
+    "glyph": "󰃭"
+  },
+  {
+    "name": "music",
+    "glyph": "󰎆"
+  },
+  {
+    "name": "spotify",
+    "glyph": "󰓇"
+  },
+  {
+    "name": "youtube",
+    "glyph": "󰗃"
+  },
+  {
+    "name": "video",
+    "glyph": "󰕧"
+  },
+  {
+    "name": "camera",
+    "glyph": "󰄄"
+  },
+  {
+    "name": "image",
+    "glyph": "󰋩"
+  },
+  {
+    "name": "palette",
+    "glyph": "󰏘"
+  },
+  {
+    "name": "settings (cog)",
+    "glyph": "󰒓"
+  },
+  {
+    "name": "apps (grid)",
+    "glyph": "󰀻"
+  },
+  {
+    "name": "information",
+    "glyph": "󰋼"
+  },
+  {
+    "name": "play",
+    "glyph": "󰐊"
+  },
+  {
+    "name": "refresh",
+    "glyph": "󰑓"
+  },
+  {
+    "name": "lock",
+    "glyph": "󰌾"
+  },
+  {
+    "name": "power",
+    "glyph": "󰐥"
+  },
+  {
+    "name": "close / kill",
+    "glyph": "󰅖"
+  },
+  {
+    "name": "volume",
+    "glyph": "󰕾"
+  },
+  {
+    "name": "wifi",
+    "glyph": "󰖩"
+  },
+  {
+    "name": "bluetooth",
+    "glyph": "󰂯"
+  },
+  {
+    "name": "discord",
+    "glyph": "󰙯"
+  },
+  {
+    "name": "ghost",
+    "glyph": "󰊠"
+  }
+]

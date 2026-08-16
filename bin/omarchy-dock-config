@@ -147,7 +147,33 @@ list_apps() {
 
 # name<TAB>codepoint. Codepoints are Nerd Fonts v3 (Material Design range),
 # every one checked to render in JetBrainsMono Nerd Font.
+#
+# The settings GUI reads the same list from the plugin's glyphs.json; when
+# that file is present it is the source of truth, so the two pickers can't
+# drift. The table below is the fallback for a stripped install.
+glyphs_json() {
+  local candidates=(
+    "$HOME/.config/omarchy/plugins/rdf.dock/glyphs.json"
+    "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../plugin/glyphs.json"
+  )
+  local f
+  for f in "${candidates[@]}"; do
+    [[ -f $f ]] && { echo "$f"; return 0; }
+  done
+  return 1
+}
+
 glyph_table() {
+  local jsonf
+  if jsonf=$(glyphs_json); then
+    jq -r '.[] | "\(.name)\t\(.glyph | explode[0] | tostring)"' "$jsonf" 2>/dev/null |
+      while IFS=$'\t' read -r name cp; do
+        [[ -z $cp ]] && continue
+        printf '%s\t%X\n' "$name" "$cp"
+      done
+    return
+  fi
+
   local e
   for e in \
     "browser (chrome)|F02AF" \
@@ -832,6 +858,42 @@ cmd_set_item() {
   echo "set [$idx]: $(echo "$json" | jq -c .)"
 }
 
+cmd_add() {
+  local json=$1 pos=${2:-}
+  echo "$json" | jq -e 'type == "object"' >/dev/null 2>&1 \
+    || die "add: not a JSON object: $json"
+  local item count
+  item=$(echo "$json" | jq -c .)
+  if [[ -n $pos ]]; then
+    [[ $pos =~ ^[0-9]+$ ]] || die "add: index must be a non-negative integer"
+    count=$(item_count)
+    [[ $pos -gt ${count:-0} ]] && pos=$count
+    apply '.items |= (.[:$p] + [$item] + .[$p:])' \
+      --argjson item "$item" --argjson p "$pos" || exit 1
+  else
+    apply '.items += [$item]' --argjson item "$item" || exit 1
+  fi
+  echo "added: $item"
+}
+
+# Dock-level settings. Value is JSON, so numbers, bools and strings all
+# come through typed; "null" deletes the key so the built-in default rules
+# again.
+cmd_set() {
+  local key=$1 value=$2
+  [[ $key =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]] || die "usage: omarchy-dock-config set <key> <json-value>"
+  [[ $key == "id" || $key == "items" ]] && die "set: '$key' is not a settable key"
+  # jq -e exits nonzero on a *valid* null, so parse-check with `empty`.
+  echo "$value" | jq empty >/dev/null 2>&1 || die "set: not valid JSON: $value"
+  if [[ $(echo "$value" | jq -c .) == "null" ]]; then
+    apply "del(.$key)" || exit 1
+    echo "unset: $key"
+  else
+    apply ".$key = \$v" --argjson v "$(echo "$value" | jq -c .)" || exit 1
+    echo "set: $key = $(echo "$value" | jq -c .)"
+  fi
+}
+
 if [[ $# -gt 0 ]]; then
   require jq
   [[ -f $CFG ]] || die "No shell.json at $CFG"
@@ -840,6 +902,8 @@ if [[ $# -gt 0 ]]; then
     unpin)    shift; cmd_unpin "${1:-}" ;;
     move)     shift; cmd_move "${1:-}" "${2:-}" ;;
     set-item) shift; cmd_set_item "${1:-}" "${2:-}" ;;
+    add)      shift; cmd_add "${1:-}" "${2:-}" ;;
+    set)      shift; cmd_set "${1:-}" "${2:-}" ;;
     -h | --help)
       cat <<'EOF'
 omarchy-dock-config             interactive configurator (gum TUI)
@@ -847,6 +911,8 @@ omarchy-dock-config pin <appId> [index]  pin a running app to the dock
 omarchy-dock-config unpin <index>        remove item (0-based)
 omarchy-dock-config move <from> <to>     reorder items (0-based)
 omarchy-dock-config set-item <i> <json>  replace an item wholesale
+omarchy-dock-config add <json> [index]   add an item
+omarchy-dock-config set <key> <json>     dock-level setting; null unsets
 EOF
       ;;
     *) die "unknown command: $1 (see --help)" ;;

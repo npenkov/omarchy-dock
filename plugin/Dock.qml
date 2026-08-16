@@ -586,9 +586,21 @@ Item {
     return (hit && hit.index !== undefined && !hit.isRule) ? hit.index : -2
   }
 
+  // The settings GUI lives behind a Loader so the dock's startup cost
+  // doesn't grow — it only instantiates on first open. (It can't be a
+  // second manifest entry point: the shell loads exactly one per plugin,
+  // and `panel` outranks `overlay`.) The gum TUI stays available as
+  // `omarchy-dock-config` in a terminal — same plumbing, SSH-friendly.
+  Loader {
+    id: settingsLoader
+    active: false
+    sourceComponent: SettingsPanel { dock: root }
+  }
+
   function openSettings() {
     root.close()
-    Util.execDetached("omarchy launch terminal omarchy-dock-config")
+    settingsLoader.active = true
+    if (settingsLoader.item) settingsLoader.item.open()
   }
 
   function open() {
@@ -632,6 +644,18 @@ Item {
     }
 
     function menuClose(): string { contextMenu.close(); return "ok" }
+
+    function settingsClose(): string {
+      if (settingsLoader.item) settingsLoader.item.close()
+      return "ok"
+    }
+
+    function settingsState(): string {
+      var p = settingsLoader.item
+      if (!p) return "not loaded"
+      return JSON.stringify({ opened: p.opened, sel: p.selIndex, dirty: p.dirty,
+                              glyphs: p.glyphList.length, apps: p.appEntries.length })
+    }
 
     function state(): string {
       return JSON.stringify({

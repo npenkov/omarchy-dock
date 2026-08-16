@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "rdf.dock",
   "name": "Dock",
-  "version": "2.0.0-dev",
+  "version": "2.0.0",
   "author": "rdf",
-  "description": "Auto-hiding launcher dock revealed by hovering the bottom edge.",
+  "description": "macOS-style dock for the Omarchy shell: pinned launchers plus running apps, auto-hiding at the bottom edge.",
   "kinds": [
     "panel"
   ],

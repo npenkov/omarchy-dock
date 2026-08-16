@@ -52,7 +52,7 @@ Item {
   function close() {
     opened = false
     picker = ""
-    dock.onSettingsClosed()
+    dock.settingsReleased()
   }
 
   function select(i) {
@@ -325,8 +325,9 @@ Item {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-dock-settings"
-    // Top sits under the dock's Overlay, so the bar stays visible and
-    // reflects live edits while this is open.
+    // Top sits under the dock's Overlay layer, so the dock stays visible —
+    // and usable — beneath the card, and edits show on it as they land. The
+    // card is lifted by the dock's height for the same reason.
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     anchors { top: true; bottom: true; left: true; right: true }

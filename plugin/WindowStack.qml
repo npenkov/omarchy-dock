@@ -1,16 +1,21 @@
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
-// The window stack: hover-dwell on a running icon (one or more windows of
-// one app) opens a vertical run of live previews above the tile — one
-// ScreencopyView per window, streaming only while the stack is open, with
-// the window title beneath. Click focuses that window. `hoverActivate`
-// makes row-hover focus it macOS-style; it defaults off, because
-// hover-focus steals focus from wherever you were typing.
+// The window stack: hover-dwell on a running icon opens a vertical run of
+// live previews above the tile — one ScreencopyView per window, streaming
+// only while the stack is open, with the window title beneath. Click
+// focuses that window; the corner badge closes it. `hoverActivate` makes
+// row-hover focus it macOS-style; it defaults off, because hover-focus
+// steals focus from wherever you were typing.
+//
+// This is a hover popup in the shell's PopupCard sense: no focus grab, the
+// owner drives it. It follows the pointer along the dock (Dock.onIconHovered
+// re-anchors it to whichever running icon is under the pointer and folds it
+// on a launch-only one) and closes once the pointer has left both it and
+// the dock for a beat.
 PopupWindow {
   id: stack
 
@@ -20,27 +25,21 @@ PopupWindow {
   property var anchorCell: null
   property bool open: false
 
-  // Snapshotted so the Repeater is not rebuilt every time windowsFor()
-  // allocates a new array (same bug as the context-menu hover flicker).
+  // Live windows for the item, snapshotted by reference — see
+  // Dock.sameWindows. Left as-is on close so the still-mapped popup keeps
+  // its size while it unmaps rather than collapsing to an empty card.
   property var wins: []
   readonly property var liveWins: open && item ? dock.windowsFor(item) : []
   onLiveWinsChanged: {
-    // Don't collapse wins while hiding — that shrinks the still-mapped
-    // popup to an empty card (the flash on a launch-only icon).
     if (!open) return
     var next = liveWins || []
-    if (sameRefs(wins, next)) return
+    if (dock.sameWindows(wins, next)) return
+    // The last window closed under the stack: nothing left to show.
     if (next.length < 1) {
       close()
       return
     }
     wins = next.slice()
-  }
-
-  function sameRefs(a, b) {
-    if (!a || !b || a.length !== b.length) return false
-    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-    return true
   }
 
   function openFor(cell) {
@@ -51,8 +50,13 @@ PopupWindow {
     }
     stack.item = cell.modelData
     stack.anchorCell = cell
-    stack.open = true
     stack.wins = next.slice()
+    if (stack.open) {
+      // Following the pointer to another icon: same surface, new anchor.
+      stack.anchor.updateAnchor()
+      return
+    }
+    stack.open = true
     stack.dock.holdForPopup()
   }
 
@@ -62,7 +66,7 @@ PopupWindow {
     stack.dock.stackReleased()
   }
 
-  visible: open && wins.length > 0
+  visible: open
   color: "transparent"
 
   readonly property int pad: Style.spacing.sm
@@ -72,17 +76,9 @@ PopupWindow {
   readonly property int shotH: Math.round(shotW * 0.6)
   readonly property int rowH: shotH + Math.round(Style.font.bodySmall + Style.spacing.md * 2)
 
-  implicitWidth: wins.length > 0
-    ? Math.round(shotW + pad * 4 + Border.left(stackBorder) + Border.right(stackBorder))
-    : 0
-  implicitHeight: wins.length > 0
-    ? Math.round(wins.length * (rowH + pad * 2) + Math.max(0, wins.length - 1) * Style.spacing.sm
-                 + pad * 2 + Border.top(stackBorder) + Border.bottom(stackBorder))
-    : 0
-
-  // No focus grab — a grab on the dock blocks icon hover, which is how
-  // Win11-style switch/dismiss is supposed to work. Hover-out + the dock's
-  // onIconHovered handle lifetime.
+  implicitWidth: Math.round(shotW + pad * 4 + Border.left(stackBorder) + Border.right(stackBorder))
+  implicitHeight: Math.round(wins.length * (rowH + pad * 2) + Math.max(0, wins.length - 1) * Style.spacing.sm
+                             + pad * 2 + Border.top(stackBorder) + Border.bottom(stackBorder))
 
   // Hover-out dismissal: once the pointer has left both the stack and the
   // dock, fold after a beat.

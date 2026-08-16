@@ -22,8 +22,9 @@ plugin/           the shell plugin (id rdf.dock, kind panel, keepLoaded)
   DockItem.qml      one slot: tile, glyph/icon, indicators, badges, handlers
   RunningModel.qml  ToplevelManager grouped by appId; window↔item matching
   TintedIcon.qml    MultiEffect colorization of app icons to the theme ink
-  ContextMenu.qml   right-click popup (PopupWindow + HyprlandFocusGrab)
-  WindowStack.qml   hover-dwell stack of live ScreencopyView previews
+  ContextMenu.qml   right-click popup: PopupWindow + HyprlandFocusGrab
+  WindowStack.qml   hover-dwell stack of live ScreencopyView previews; no
+                    grab, follows the pointer along the dock
   SettingsPanel.qml settings GUI overlay, behind a Loader in Dock.qml
   glyphs.json       curated glyph list, shared by GUI and TUI pickers
 bin/omarchy-dock-config   gum TUI + the programmatic subcommands
@@ -70,6 +71,15 @@ desktop.
 - QML XHR can't read file:// — use Quickshell.Io FileView; plugin dir =
   `manifest.__sourceDir`.
 - `jq -e` fails on valid null (use `jq empty` to parse-check).
+- Popups follow the shell's PopupCard split: click-dismissed = PopupWindow
+  + HyprlandFocusGrab over [popup, dock] (the dock stays inside the grab,
+  so it keeps its own hover/taps and drives switch/dismiss itself); hover-
+  driven = no grab, the owner opens/closes it. Don't reach for fullscreen
+  layers with input masks or cursor polling for either — that was tried
+  and is what the grab replaces.
+- `dock.windowsFor()` allocates per call: anything that binds a Repeater
+  to a window list snapshots it through `dock.sameWindows` first, or the
+  delegates rebuild (and lose hover) on every model tick.
 
 ## State / loose ends
 
@@ -80,4 +90,9 @@ desktop.
   fixable with `--class=` in the profile launchers (README covers it).
 - No git remote yet. Local-only history.
 - Post-v2.1 fixes: settings input-delivery bugs, popups close with dock,
-  `fullWidth` mode. Check `git log` since the v2.1.0 tag first.
+  `fullWidth` mode, taskbar-style stack (single-window previews, close
+  badge, pointer-following), settings keeps the dock revealed. Check
+  `git log` since the v2.1.0 tag first.
+- Hover paths (menu switch/dismiss on icon hover, stack following, badge
+  reveals) can only be verified by a human at the mouse; after touching
+  them, ask for a hands-on check.

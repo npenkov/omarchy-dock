@@ -184,9 +184,10 @@ Item {
     onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x)
   }
 
-  // Hover dwell for the window stack: a running icon (1+ windows) held
-  // under the pointer for a beat opens the preview stack. Leaving before
-  // the dwell fires cancels it.
+  // Hover dwell for the window stack: a running icon held under the
+  // pointer for a beat opens the preview stack. Leaving before the dwell
+  // fires cancels it; once a stack is up it follows the pointer without a
+  // dwell (dock.onIconHovered), and a menu keeps it shut.
   Timer {
     id: stackDwell
     interval: 300
@@ -203,7 +204,7 @@ Item {
 
     onHoveredChanged: {
       if (hovered) cell.dock.onIconHovered(cell)
-      if (hovered && cell.wins.length > 0 && !cell.dock.menuOpen && !cell.dock.stackOpen)
+      if (hovered && cell.wins.length > 0 && !cell.dock.popupOpen)
         stackDwell.restart()
       else stackDwell.stop()
       if (cell.dock.dragging) return
@@ -226,10 +227,7 @@ Item {
     // The pin badge sits inside this handler's area; a press there is the
     // badge's, not a launch. Checked by hover rather than an exclusive
     // grab — grabs are how the v1 right-click menu broke.
-    onTapped: {
-      if (cell.dock.menuOpen) cell.dock.closeMenu()
-      if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
-    }
+    onTapped: if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
   }
 
   // Pin badge: running-section items only, revealed by hover. One click

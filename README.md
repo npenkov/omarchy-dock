@@ -16,9 +16,15 @@ curated glyphs as one set.
 Multiple windows of one app collapse to a single icon with a count badge.
 Holding the pointer over a running icon for a beat opens a vertical stack of
 **live window previews** — even for a single window — click one to focus it,
-or hit the close badge on a preview to close that window. Set `hoverActivate: true` to
-focus windows as you hover the stack, full macOS style (off by default:
-hover-focus steals focus from wherever you were typing).
+or hit the close badge on a preview to close that window. Once a stack is
+up it follows the pointer along the dock, taskbar-style, and folds when you
+drift away. Set `hoverActivate: true` to focus windows as you hover the
+stack, full macOS style (off by default: hover-focus steals focus from
+wherever you were typing).
+
+The right-click menu dismisses like every other shell popup: click
+anywhere else, pick a row, or press Escape. Hovering another icon dismisses
+it too, so a menu opened by mistake never needs a trip off the dock.
 
 It ships as a third-party Quickshell plugin (`rdf.dock`) plus a settings
 GUI (right-click → Dock Settings…, or double-click the dock background)

@@ -139,83 +139,50 @@ Item {
     dock: root
   }
 
+  // The two popups are mutually exclusive: the menu wins (a right-click is
+  // deliberate, a dwell is not), and each one's open state is the truth —
+  // nothing here mirrors it.
   readonly property bool menuOpen: contextMenu.open
-  readonly property var menuCell: contextMenu.anchorCell
-  property int menuIndex: -1
+  readonly property int menuIndex: menuOpen && contextMenu.anchorCell ? contextMenu.anchorCell.index : -1
   readonly property bool stackOpen: windowStack.open
-  readonly property bool popupOpen: contextMenu.open || windowStack.open
-
-  property int stackIndex: -1
+  readonly property bool settingsOpen: settingsLoader.item ? settingsLoader.item.opened : false
+  // Anything that holds the dock revealed while it's up. Settings counts:
+  // its card sits above the bar precisely so live edits show on it.
+  readonly property bool popupOpen: menuOpen || stackOpen || settingsOpen
 
   function openStack(cell) {
-    if (contextMenu.open || dragging) return
-    stackIndex = cell.index
+    if (menuOpen || dragging) return
     windowStack.openFor(cell)
   }
 
   function closeStack() { windowStack.close() }
 
+  // Right-click on the icon whose menu is already up toggles it, like the
+  // bar's tray menu; on any other icon the menu moves there.
   function openMenu(cell) {
+    if (menuOpen && cell.index === menuIndex) {
+      contextMenu.close()
+      return
+    }
     windowStack.close()
-    menuIndex = cell.index
     contextMenu.openFor(cell)
   }
 
   function closeMenu() { contextMenu.close() }
 
-  function monitorOrigin(screen) {
-    var name = screen ? String(screen.name || "") : ""
-    var mons = Hyprland.monitors.values || []
-    for (var i = 0; i < mons.length; i++) {
-      if (String(mons[i].name || "") === name)
-        return ({ x: Number(mons[i].x) || 0, y: Number(mons[i].y) || 0 })
-    }
-    return ({ x: 0, y: 0 })
-  }
-
-  function iconIndexAtScreen(sx, sy, screen, cell) {
-    var dockWin = cell && cell.QsWindow ? cell.QsWindow.window : null
-    if (!dockWin) return -1
-    var sw = screen ? screen.width : 0
-    var sh = screen ? screen.height : 0
-    if (!(sw > 0 && sh > 0)) return -1
-    var sl = Math.round((sw - dockWin.width) / 2)
-    var st = sh - dockWin.height
-    var lx = sx - sl
-    var ly = sy - st
-    var hitX = Math.round((dockWin.width - cardWidth) / 2)
-    var hitY = labelBand
-    if (lx < hitX || lx >= hitX + cardWidth) return -1
-    if (ly < hitY || ly >= hitY + cardHeight + edgeGap) return -1
-    var rowLeft = (cardWidth - contentWidth) / 2
-    var x = (lx - hitX) - rowLeft
-    var items = displayItems
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i]
-      if (Util.isPlainObject(it) && (it.spacer === true || it.__divider === true)) continue
-      var cx = cellXs[i] || 0
-      var cw = cellWidth(it)
-      if (x >= cx && x < cx + cw) return i
-    }
-    return -1
-  }
-
-  // Win11 taskbar hover: thumbnails follow the icon under the pointer.
-  // A running icon switches (or opens) the preview; a launch-only icon
-  // dismisses it. A right-click menu is left alone — hover must not spawn
-  // an empty menu over another tile.
+  // Icon hover while a popup is up, taskbar-style: the stack follows the
+  // pointer — a running icon switches it there, a launch-only icon folds it
+  // — and moving onto another icon dismisses the menu, so the pointer never
+  // has to leave the dock to get out of a menu it opened by mistake.
   function onIconHovered(cell) {
     if (dragging || !cell || cell.isRule) return
-    if (menuOpen && cell.index !== menuIndex) {
-      closeMenu()
+    if (menuOpen) {
+      if (cell.index !== menuIndex) closeMenu()
       return
     }
-    if (menuOpen) return
-    if (cell.wins.length > 0) {
-      if (stackOpen) openStack(cell)
-    } else if (stackOpen) {
-      windowStack.close()
-    }
+    if (!stackOpen) return
+    if (cell.wins.length > 0) openStack(cell)
+    else closeStack()
   }
 
   // A popup holds the dock open the same way IPC show() does. Releasing
@@ -233,9 +200,17 @@ Item {
     if (!wantOpen) hideTimer.restart()
   }
 
-  function stackReleased() {
-    stackIndex = -1
-    releasePopup()
+  function stackReleased() { releasePopup() }
+
+  // Same references in the same order. windowsFor() builds a fresh array
+  // per call, so anything that snapshots a window list compares by this
+  // before adopting a new one — otherwise every unrelated model tick would
+  // rebuild the popup's delegates from scratch.
+  function sameWindows(a, b) {
+    a = a || []; b = b || []
+    if (a.length !== b.length) return false
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+    return true
   }
 
   // Live DockItem instances, for IPC-driven actions (a keybinding or a
@@ -262,10 +237,7 @@ Item {
 
   // Called by the menu when it closes: hand the reveal state back to the
   // pointer. If it already left, start the normal hide countdown.
-  function menuReleased() {
-    menuIndex = -1
-    releasePopup()
-  }
+  function menuReleased() { releasePopup() }
 
   // Pin/unpin route through the configurator CLI — the one validated
   // shell.json writer — and the config hot-reload brings the change back.
@@ -624,8 +596,7 @@ Item {
 
   property string hoveredLabel: ""
   property real hoveredCenterX: 0
-  readonly property bool wantOpen: active && (hotspotHovers > 0 || dockHovers > 0
-    || (menuOpen && contextMenu.hovered))
+  readonly property bool wantOpen: active && (hotspotHovers > 0 || dockHovers > 0)
 
   // True when the named output's active workspace holds no windows.
   // `toplevels` tracks live windows, so a binding on this flips the moment
@@ -720,21 +691,18 @@ Item {
     sourceComponent: SettingsPanel { dock: root }
   }
 
+  // Settings takes over from any popup and keeps the dock revealed for as
+  // long as it's up, so edits land on a bar you can see.
   function openSettings() {
     contextMenu.close()
     windowStack.close()
     settingsLoader.active = true
     if (settingsLoader.item) settingsLoader.item.open()
-    // Stay revealed so live edits are visible behind/below the settings card.
     holdForPopup()
     revealed = true
   }
 
-  function onSettingsClosed() {
-    if (popupOpen) return
-    held = false
-    if (!wantOpen) hideTimer.restart()
-  }
+  function settingsReleased() { releasePopup() }
 
   function open() {
     revealTimer.stop()
@@ -911,54 +879,60 @@ Item {
     launchNew(item, entry)
   }
 
-  // Desktop action named new-window / new_window, if the entry has one.
-  // gtk-launch + DBusActivatable (Nautilus, etc.) only Activate()s the
-  // existing instance; the action's Exec is what actually opens another.
-  function newWindowAction(entry) {
-    if (!entry || !entry.actions) return null
-    var list = entry.actions
-    for (var i = 0; i < list.length; i++) {
-      var a = list[i]
-      if (!a) continue
-      var id = String(a.id || "").toLowerCase().replace(/_/g, "-")
-      if (id === "new-window" || id === "newwindow") return a
-    }
-    return null
-  }
-
-  function runDesktopCommand(command, cwd) {
-    if (!command || command.length < 1) return false
-    var argv = ["uwsm-app", "--"]
-    for (var i = 0; i < command.length; i++) argv.push(String(command[i]))
-    var spec = { command: argv }
-    if (cwd) spec.workingDirectory = String(cwd)
-    Quickshell.execDetached(spec)
-    return true
-  }
-
-  // The plain launch path — v1's activate. Also what the context menu's
-  // New Window uses, which is why it ignores live windows.
+  // The plain launch path — v1's activate — through the shell's own
+  // launcher (uwsm-app + gtk-launch, with its "Launching…" feedback), so a
+  // dock launch behaves exactly like one from the app menu: Terminal=
+  // entries get a terminal, DBus-activatable apps get activated.
   function launchNew(item, entry) {
     if (!Util.isPlainObject(item)) return
     if (root.flag("hideOnLaunch", true)) root.close()
-
-    var action = root.newWindowAction(entry)
-    if (action && root.runDesktopCommand(action.command, entry.workingDirectory))
-      return
 
     if (item.exec) {
       Util.execDetached(String(item.exec))
       return
     }
-    // Prefer the desktop Exec over gtk-launch: DBus-activated apps
-    // treat a second launch as "focus me", which is the opposite of
-    // New Window. Nautilus's Exec is already `nautilus --new-window`.
-    if (entry && root.runDesktopCommand(entry.command, entry.workingDirectory))
+    if (entry && root.shell && root.shell.appLibrary) {
+      root.shell.appLibrary.launch(entry.id, entry.name)
       return
+    }
     if (item.desktop) {
       var id = String(item.desktop).replace(/\.desktop$/, "")
       Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
     }
+  }
+
+  // The context menu's New Window. Activating a DBus-activatable app that
+  // is already running only raises it, so an entry that ships a new-window
+  // desktop action (Files, Text Editor, browsers…) runs that action's
+  // command instead — the same thing a jump list does. Anything else
+  // launches plainly.
+  function launchNewWindow(item, entry) {
+    var action = root.newWindowAction(entry)
+    if (!action) {
+      launchNew(item, entry)
+      return
+    }
+    if (root.flag("hideOnLaunch", true)) root.close()
+    var argv = ["uwsm-app", "--"]
+    for (var i = 0; i < action.command.length; i++) argv.push(String(action.command[i]))
+    var spec = { command: argv }
+    if (entry.workingDirectory) spec.workingDirectory = String(entry.workingDirectory)
+    Quickshell.execDetached(spec)
+  }
+
+  // The entry's new-window desktop action, if it has one and can run it
+  // outside a terminal (actions inherit Terminal=, and gtk-launch is the
+  // only path here that honours it).
+  function newWindowAction(entry) {
+    if (!entry || entry.runInTerminal || !entry.actions) return null
+    var list = entry.actions
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i]
+      if (!a || !a.command || a.command.length < 1) continue
+      var id = String(a.id || "").toLowerCase().replace(/_/g, "-")
+      if (id === "new-window" || id === "newwindow") return a
+    }
+    return null
   }
 
   // ---------------------------------------------------------- reveal zone
@@ -1123,7 +1097,10 @@ Item {
             NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
           }
 
-          // Double-clicking the dock's own background opens the settings TUI.
+          // A left click on the card is a click outside the menu: the dock
+          // sits inside the menu's focus grab (so it keeps hover and taps),
+          // which means the grab won't dismiss for us here. Double-clicking
+          // the dock's own background opens settings.
           //
           // The default gesture policy takes only a *passive* grab, so this
           // coexists with the per-icon tap handlers rather than stealing
@@ -1131,21 +1108,10 @@ Item {
           // ReleaseWithinBounds, which takes an exclusive grab — the likely
           // reason right-clicking an icon did nothing while the background
           // worked.
-          HoverHandler {
-            enabled: root.menuOpen
-            onPointChanged: {
-              if (!root.menuOpen) return
-              var idx = root.hitAt(card, row, point.position.x, point.position.y)
-              if (idx !== root.menuIndex) root.closeMenu()
-            }
-          }
-
           TapHandler {
             acceptedButtons: Qt.LeftButton
 
-            onTapped: function(eventPoint) {
-              if (root.menuOpen) root.closeMenu()
-            }
+            onTapped: root.closeMenu()
 
             onDoubleTapped: function(eventPoint) {
               // Only the background: double-clicking an icon should launch

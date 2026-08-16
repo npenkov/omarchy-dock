@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="mock.css"></head>
+<body>
+
+<div class="dock-wrap"><div class="dock">
+  <div class="tile">󰆍<div class="dot"></div></div>
+  <div class="tile">󰉋</div>
+  <div class="section-divider"></div>
+  <div class="tile tinted"><img src="file:///usr/share/icons/hicolor/256x256/apps/omarchy-discord.png"><div class="dot"></div></div>
+  <div class="tile tinted hot"><img src="file:///usr/share/icons/hicolor/256x256/apps/zoom.png"><div class="dot"></div></div>
+  <div class="tile"><img src="file:///usr/share/icons/hicolor/128x128/apps/mpv.png"><div class="dot"></div></div>
+</div></div>
+
+<div class="popup" style="left:505px; bottom:105px">
+  <div class="row hot"><span class="g">󰐕</span>New Window</div>
+  <div class="sep"></div>
+  <div class="row"><span class="g">󰐃</span>Pin to Dock</div>
+  <div class="sep"></div>
+  <div class="row"><span class="g">󱂬</span>Weekly standup — Zoom</div>
+  <div class="row"><span class="g">󱂬</span>Zoom Workplace</div>
+  <div class="sep"></div>
+  <div class="row"><span class="g">󰅖</span>Close All Windows</div>
+  <div class="sep"></div>
+  <div class="row dim"><span class="g">󰒓</span>Dock Settings…</div>
+</div>
+
+<svg class="wires">
+  <line x1="475" y1="245" x2="512" y2="300"/><circle cx="512" cy="300" r="3"/>
+  <line x1="850" y1="330" x2="742" y2="384"/><circle cx="742" cy="384" r="3"/>
+  <line x1="850" y1="435" x2="740" y2="480"/><circle cx="740" cy="480" r="3"/>
+  <line x1="330" y1="380" x2="500" y2="430"/><circle cx="500" cy="430" r="3"/>
+</svg>
+
+<div class="note" style="left:300px; top:190px">
+  <b>New Window</b> = the item's launch action — desktop entry
+  or exec, same path a plain click takes when nothing is running.
+</div>
+<div class="note" style="left:840px; top:295px">
+  <b>One row per open window</b> when there's more than one
+  (title, truncated). Click focuses that window.
+</div>
+<div class="note" style="left:840px; top:410px">
+  For a <em>pinned</em> item this reads <b>Unpin</b> instead —
+  if it's still running, the icon visibly hops back to the
+  running section.
+</div>
+<div class="note" style="left:130px; top:320px">
+  <b>Dismissal</b> — PopupWindow + HyprlandFocusGrab, the shell's
+  own PopupCard pattern: any action closes it, clicking anywhere
+  outside closes it, Esc closes it. It never persists. Auto-hide
+  is suspended (<tt>held</tt>) while open, released on close.
+</div>
+
+</body></html>

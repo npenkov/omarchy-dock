@@ -110,6 +110,13 @@ Item {
     (config.runningIndicator === "line" || config.runningIndicator === "none")
       ? String(config.runningIndicator) : "dot"
 
+  // Icon tinting defaults. Pinned icons stay full-colour unless asked —
+  // they're curated. Running-section icons tint by default, because an
+  // arbitrary app landing in the dock shouldn't get to break the theme.
+  // A per-item `tint` overrides either.
+  readonly property bool tintIcons: flag("tintIcons", false)
+  readonly property bool tintRunning: flag("tintRunning", true)
+
   RunningModel {
     id: running
     dock: root

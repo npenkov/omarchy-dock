@@ -26,6 +26,15 @@ Item {
   readonly property string label: dock.itemLabel(modelData, entry)
   // This item's live windows, MRU-first. Empty for launch-only items.
   readonly property var wins: isRule ? [] : dock.windowsFor(modelData)
+
+  // Whether this item's icon is colorized to the theme. Per-item `tint`
+  // wins; otherwise running-section items follow tintRunning and pinned
+  // ones tintIcons. Glyphs are already ink-coloured and ignore all of it.
+  readonly property bool tinted: {
+    var t = Util.isPlainObject(modelData) ? modelData.tint : undefined
+    if (typeof t === "boolean") return t
+    return isRunning ? dock.tintRunning : dock.tintIcons
+  }
   // A Nerd Font glyph standing in for an icon file. Plenty of worthwhile
   // dock entries — a script, an RDP session, a kill switch — have no icon
   // on disk to point at.
@@ -126,7 +135,7 @@ Item {
         : cell.glyphSize
     }
 
-    Image {
+    TintedIcon {
       visible: cell.glyph === ""
       anchors.centerIn: parent
       width: art.box
@@ -134,12 +143,9 @@ Item {
       opacity: cell.dock.iconOpacity
       source: (cell.isRule || cell.glyph !== "") ? "" : cell.dock.itemIcon(cell.modelData, cell.entry)
       // Oversampled so the hover scale stays crisp on raster icons.
-      sourceSize.width: cell.dock.slot * 2
-      sourceSize.height: cell.dock.slot * 2
-      fillMode: Image.PreserveAspectFit
-      smooth: true
-      asynchronous: true
-      mipmap: true
+      sourceOversample: cell.dock.slot * 2
+      tinted: cell.tinted
+      ink: iconHover.hovered ? Color.accent : cell.dock.glyphColor
     }
   }
 

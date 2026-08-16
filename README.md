@@ -1,0 +1,124 @@
+# OmarchyDock
+
+An auto-hiding launcher dock for the [Omarchy](https://omarchy.org/) shell.
+Hover the bottom edge of the screen and it slides up; move away and it hides
+again. Items can be full-colour app icons or Nerd Font glyphs, and the whole
+thing follows the current Omarchy theme.
+
+It ships as a third-party Quickshell plugin (`rdf.dock`) plus an interactive
+configurator, `omarchy-dock-config`.
+
+## Requirements
+
+- Omarchy (Hyprland + the Quickshell-based `omarchy-shell`)
+- `jq` and `gum` — used by the configurator
+- `inotify-tools` — only for `scripts/dev-watch.sh`
+
+## Install
+
+```bash
+git clone <this repo> ~/Scripts/vibe/OmarchyDock
+cd ~/Scripts/vibe/OmarchyDock
+./install.sh
+```
+
+`install.sh` is idempotent, backs up anything real it displaces, and takes
+`--dry-run` if you want to see the plan first. It:
+
+| Step | Destination |
+|------|-------------|
+| Links the plugin | `~/.config/omarchy/plugins/rdf.dock` → `plugin/` |
+| Links the configurator | `~/.local/bin/omarchy-dock-config` → `bin/` |
+| Links the Hyprland settings | `~/.config/hypr/dock.lua` → `hypr/dock.lua` |
+| Adds `pcall(require, "hypr.dock")` | `~/.config/hypr/hyprland.lua` |
+| Seeds a starter dock entry | `~/.config/omarchy/shell.json` |
+
+Everything except `shell.json` is a symlink back into this checkout, so this
+repo stays the single source of truth — edit here, commit here. `shell.json`
+is shared with the rest of the shell, so the dock's entry is merged into it
+instead, staged through a temp file and only swapped in once `jq` confirms
+the result still parses and still contains the dock. A broken `shell.json`
+costs the whole bar, not just this plugin.
+
+An existing dock entry is never overwritten; re-running the installer leaves
+your settings alone unless you pass `--replace-config`.
+
+The `pcall` on the Hyprland require is deliberate: if this checkout is
+deleted, the config degrades to "no blur behind the dock" rather than taking
+down the whole Hyprland config with a missing-module error.
+
+## Configure
+
+```bash
+omarchy-dock-config      # or right-click the dock
+```
+
+The configurator writes straight into the dock's entry in `shell.json`, which
+the shell re-reads on save — changes show up immediately, no restart.
+
+**Your dock contents are yours, not the repo's.** What ships in
+`config/shell.dock.json` is a neutral starting point (app launcher, browser,
+terminal, files) so a fresh install has a working dock. Add your own items
+after installing; they live in `shell.json` and are intentionally not tracked
+here. If an item points at a custom `.desktop` entry or a script, that entry
+or script is a prerequisite you install separately.
+
+Settings on the plugin entry:
+
+| Key | Meaning |
+|-----|---------|
+| `items` | The dock contents; `{"spacer": true}` draws a divider |
+| `iconSize` | Icon edge length in px |
+| `labels` | Show a label above the hovered item |
+| `magnify` | macOS-style hover magnification |
+| `tiles`, `tileStyle`, `tileOpacity`, `tileRadius` | Draw items as themed tiles |
+| `cornerRadius`, `edgeGap` | Shape and offset of the dock card |
+| `revealDelay`, `hideDelay` | Hover-in and hover-out delays in ms |
+| `hotspotFullWidth`, `hotspotHeight` | Size of the bottom-edge trigger zone |
+| `hideOnLaunch` | Hide the dock after activating an item |
+| `showWhenEmpty` | Still reveal when there are no items |
+
+Item keys: `exec`, `desktop`, `glyph`, `icon`, `label`, `iconScale`,
+`spacer`, and `when` (a shell command; the item only shows when it exits 0).
+
+## Development
+
+```bash
+./scripts/dev-watch.sh
+```
+
+Leave that running while you edit `plugin/Dock.qml` and the dock reloads on
+save. It exists because the shell watches `~/.config/omarchy/plugins` with
+`inotifywait -r`, which does not traverse symlinks — so with the plugin
+directory linked here, the shell's own watcher never sees your edits and the
+dock silently keeps serving the code it started with. The script watches the
+real files and calls `omarchy-shell shell rescanPlugins`, which clears Qt's
+component cache and reloads the QML from disk.
+
+Without the watcher, apply changes by hand:
+
+```bash
+omarchy-shell shell rescanPlugins      # or: omarchy restart shell
+```
+
+Edits to `shell.json` need none of this — the shell hot-reloads that on save.
+
+## Layout
+
+```
+plugin/     the shell plugin itself (manifest.json + Dock.qml)
+bin/        omarchy-dock-config, the interactive configurator
+hypr/       dock.lua — blur and layer rules for Hyprland
+config/     shell.dock.json — the starter dock entry for shell.json
+scripts/    dev-watch.sh — reload the shell while editing
+```
+
+## Uninstall
+
+```bash
+./uninstall.sh                 # keeps your dock settings in shell.json
+./uninstall.sh --purge-config  # drops them too
+```
+
+It only removes symlinks that point back into this checkout, so anything you
+installed another way is left alone.

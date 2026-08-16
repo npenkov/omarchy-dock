@@ -1,0 +1,39 @@
+{
+  "id": "rdf.dock",
+  "iconSize": 48,
+  "revealDelay": 40,
+  "hideDelay": 350,
+  "magnify": false,
+  "labels": true,
+  "hideOnLaunch": true,
+  "hotspotFullWidth": true,
+  "hotspotHeight": 2,
+  "edgeGap": 6,
+  "showWhenEmpty": true,
+  "tiles": true,
+  "items": [
+    {
+      "exec": "omarchy menu summon apps",
+      "glyph": "󰀻",
+      "label": "App Launcher"
+    },
+    {
+      "spacer": true
+    },
+    {
+      "exec": "omarchy launch browser",
+      "glyph": "󰊯",
+      "label": "Browser"
+    },
+    {
+      "exec": "omarchy launch terminal",
+      "glyph": "󰆍",
+      "label": "Terminal"
+    },
+    {
+      "exec": "omarchy launch nautilus",
+      "glyph": "󰉋",
+      "label": "Files"
+    }
+  ]
+}

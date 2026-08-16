@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "rdf.dock",
+  "name": "Dock",
+  "version": "1.0.0",
+  "author": "rdf",
+  "description": "Auto-hiding launcher dock revealed by hovering the bottom edge.",
+  "kinds": [
+    "panel"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "Dock.qml"
+  }
+}

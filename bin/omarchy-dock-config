@@ -765,8 +765,11 @@ valid_index() {
 }
 
 cmd_pin() {
-  local appid=$1
-  [[ -n $appid ]] || die "usage: omarchy-dock-config pin <appId>"
+  local appid=$1 pos=${2:-}
+  [[ -n $appid ]] || die "usage: omarchy-dock-config pin <appId> [index]"
+  if [[ -n $pos && ! $pos =~ ^[0-9]+$ ]]; then
+    die "pin: index must be a non-negative integer"
+  fi
 
   # Belt and braces — the dock only offers Pin on unclaimed apps, but the
   # CLI can be called by hand.
@@ -787,8 +790,17 @@ cmd_pin() {
     item=$(jq -cn --arg a "$appid" '{appId: $a, label: $a}')
   fi
 
-  apply '.items += [$item]' --argjson item "$item" || exit 1
-  echo "pinned: $appid -> $item"
+  if [[ -n $pos ]]; then
+    local count
+    count=$(item_count)
+    [[ $pos -gt ${count:-0} ]] && pos=$count
+    apply '.items |= (.[:$p] + [$item] + .[$p:])' \
+      --argjson item "$item" --argjson p "$pos" || exit 1
+    echo "pinned at $pos: $appid -> $item"
+  else
+    apply '.items += [$item]' --argjson item "$item" || exit 1
+    echo "pinned: $appid -> $item"
+  fi
 }
 
 cmd_unpin() {
@@ -824,14 +836,14 @@ if [[ $# -gt 0 ]]; then
   require jq
   [[ -f $CFG ]] || die "No shell.json at $CFG"
   case $1 in
-    pin)      shift; cmd_pin "${1:-}" ;;
+    pin)      shift; cmd_pin "${1:-}" "${2:-}" ;;
     unpin)    shift; cmd_unpin "${1:-}" ;;
     move)     shift; cmd_move "${1:-}" "${2:-}" ;;
     set-item) shift; cmd_set_item "${1:-}" "${2:-}" ;;
     -h | --help)
       cat <<'EOF'
 omarchy-dock-config             interactive configurator (gum TUI)
-omarchy-dock-config pin <appId>          pin a running app to the dock
+omarchy-dock-config pin <appId> [index]  pin a running app to the dock
 omarchy-dock-config unpin <index>        remove item (0-based)
 omarchy-dock-config move <from> <to>     reorder items (0-based)
 omarchy-dock-config set-item <i> <json>  replace an item wholesale

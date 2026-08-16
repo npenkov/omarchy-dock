@@ -189,6 +189,126 @@ Item {
     return out
   }
 
+  // ----------------------------------------------------------------- drag
+  //
+  // Cells are positioned by cellXs rather than a Row, so the layout can
+  // open a live gap at the insertion point while something is dragged —
+  // the other cells slide aside (Behavior on x in DockItem), macOS-style.
+  // The card's width never changes mid-drag: the dragged cell keeps its
+  // slot in the total, it just leaves the flow.
+  //
+  // Crossing the divider is the pin gesture: a running app dropped in the
+  // pinned zone pins at the drop position; a pinned item dropped past the
+  // divider unpins. Both persist through the configurator CLI and come
+  // back via the config reload. The derived divider itself is not
+  // draggable; spacers are items and move like anything else.
+
+  property int dragIndex: -1
+  property real dragPointerX: 0
+  property real dragGrabDX: 0
+  readonly property bool dragging: dragIndex >= 0
+
+  function beginDrag(cell, sceneX) {
+    var rx = cell.parent.mapFromItem(null, sceneX, 0).x
+    dragGrabDX = rx - cell.x
+    dragPointerX = rx
+    dragIndex = cell.index
+    hoveredLabel = ""
+  }
+
+  function updateDrag(cell, sceneX) {
+    dragPointerX = cell.parent.mapFromItem(null, sceneX, 0).x
+  }
+
+  // Insertion slot among the un-dragged cells, from the dragged cell's
+  // centre against the base-flow centres (base coords, not the shifted
+  // ones — comparing against positions this value itself moves would
+  // oscillate).
+  readonly property int dropIndex: {
+    if (!dragging) return -1
+    var draggedCenter = dragPointerX - dragGrabDX + cellWidth(displayItems[dragIndex]) / 2
+    var x = 0
+    var flow = 0
+    var result = 0
+    for (var i = 0; i < displayItems.length; i++) {
+      if (i === dragIndex) continue
+      var w = cellWidth(displayItems[i])
+      if (draggedCenter > x + w / 2) result = flow + 1
+      x += w + gap
+      flow++
+    }
+    return result
+  }
+
+  // x for every cell: cumulative flow positions, with a dragged-cell-sized
+  // gap held open at dropIndex. The dragged cell's slot reads 0 — its x is
+  // bound to the pointer instead.
+  readonly property var cellXs: {
+    var xs = new Array(displayItems.length)
+    var x = 0
+    var flow = 0
+    var dw = dragging ? cellWidth(displayItems[dragIndex]) + gap : 0
+    for (var i = 0; i < displayItems.length; i++) {
+      if (i === dragIndex) { xs[i] = 0; continue }
+      xs[i] = x + (dragging && flow >= dropIndex ? dw : 0)
+      x += cellWidth(displayItems[i]) + gap
+      flow++
+    }
+    return xs
+  }
+
+  function endDrag() {
+    if (!dragging) return
+    var s = dragIndex
+    var t = dropIndex
+    dragIndex = -1
+
+    var item = displayItems[s]
+    if (!Util.isPlainObject(item)) return
+
+    // Zone boundary: how many un-dragged cells are pinned items. An
+    // insertion at exactly that slot is "end of the pinned section";
+    // anything past it is the running zone.
+    var pinnedFlow = 0
+    for (var i = 0; i < displayItems.length; i++) {
+      if (i === s) continue
+      if (items.indexOf(displayItems[i]) >= 0) pinnedFlow++
+    }
+
+    // The items[] index the insertion slot corresponds to: the pinned cell
+    // occupying flow slot t, or the end of items[] when t lands on the
+    // divider or beyond.
+    var insertAt = items.length
+    var flow = 0
+    for (var j = 0; j < displayItems.length; j++) {
+      if (j === s) continue
+      if (flow === t) {
+        var idx = items.indexOf(displayItems[j])
+        if (idx >= 0) insertAt = idx
+        break
+      }
+      flow++
+    }
+
+    var from = items.indexOf(item)
+    if (from >= 0) {
+      if (t > pinnedFlow) {
+        // Dropped past the divider: unpin.
+        Util.execDetached("omarchy-dock-config unpin " + from)
+      } else {
+        var to = insertAt > from ? insertAt - 1 : insertAt
+        if (to !== from)
+          Util.execDetached("omarchy-dock-config move " + from + " " + to)
+      }
+    } else if (item.__running === true && t <= pinnedFlow) {
+      // A running app dropped in the pinned zone pins at that position.
+      Util.execDetached("omarchy-dock-config pin "
+        + Util.shellQuote(String(item.appId)) + " " + insertAt)
+    }
+  }
+
+  function cancelDrag() { dragIndex = -1 }
+
   // ------------------------------------------------------ conditional items
   //
   // An item may carry a `when` command; it occupies a slot only while that
@@ -810,10 +930,13 @@ Item {
             }
           }
 
-          Row {
+          // Not a Row: cells place themselves from root.cellXs so a drag
+          // can hold a gap open while the others slide aside.
+          Item {
             id: row
             anchors.centerIn: parent
-            spacing: root.gap
+            width: root.contentWidth
+            height: root.slot
 
             Repeater {
               model: root.displayItems
@@ -828,7 +951,7 @@ Item {
 
       BorderSurface {
         id: tip
-        visible: root.labels && dockWindow.shown && root.hoveredLabel !== ""
+        visible: root.labels && dockWindow.shown && root.hoveredLabel !== "" && !root.dragging
         y: 0
         height: root.labelHeight
         width: Math.round(tipText.implicitWidth + Style.spacing.xxl * 2)

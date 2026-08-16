@@ -68,8 +68,23 @@ Item {
   width: dock.cellWidth(modelData)
   height: dock.slot
 
+  // Placed by the dock's flow layout; while dragged, glued to the pointer
+  // instead, riding above the others.
+  readonly property bool dragged: dock.dragging && dock.dragIndex === cell.index
+  x: dragged ? dock.dragPointerX - dock.dragGrabDX : (dock.cellXs[cell.index] || 0)
+  z: dragged ? 10 : 0
+  Behavior on x {
+    enabled: !cell.dragged
+    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+  }
+
   Component.onCompleted: dock.registerCell(cell)
-  Component.onDestruction: dock.unregisterCell(cell)
+  Component.onDestruction: {
+    dock.unregisterCell(cell)
+    // A config reload can rebuild cells mid-drag; drop the drag rather
+    // than act on a stale index.
+    if (cell.dragged) dock.cancelDrag()
+  }
 
   Rectangle {
     visible: cell.isRule
@@ -89,9 +104,10 @@ Item {
     height: cell.dock.slot
 
     // Grows from its base so the icon lifts out of the dock rather than
-    // drifting through it.
+    // drifting through it. Suppressed while anything is being dragged —
+    // cells sliding under the pointer would pulse otherwise.
     transformOrigin: Item.Bottom
-    scale: (cell.dock.magnify && iconHover.hovered) ? 1.18 : 1.0
+    scale: (cell.dock.magnify && iconHover.hovered && !cell.dock.dragging) ? 1.18 : 1.0
     Behavior on scale {
       NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
     }
@@ -152,12 +168,29 @@ Item {
     }
   }
 
+  // Drag-to-reorder (and, across the divider, drag-to-pin/unpin). The
+  // handler's default activation threshold is what keeps a sloppy click a
+  // click. target: null — the dock's flow layout owns all positioning.
+  DragHandler {
+    id: dragHandler
+    enabled: !cell.isDivider
+    target: null
+
+    onActiveChanged: {
+      if (active) cell.dock.beginDrag(cell, centroid.scenePosition.x)
+      else cell.dock.endDrag()
+    }
+
+    onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x)
+  }
+
   HoverHandler {
     id: iconHover
     enabled: !cell.isRule
     cursorShape: Qt.PointingHandCursor
 
     onHoveredChanged: {
+      if (cell.dock.dragging) return
       if (hovered) {
         cell.dock.hoveredLabel = cell.label
         // Window coordinates for the label pill: map through whatever
@@ -185,7 +218,7 @@ Item {
   // config reload moves the icon left of the divider — where it now stays.
   Rectangle {
     id: pinBadge
-    readonly property bool shown: cell.isRunning && iconHover.hovered
+    readonly property bool shown: cell.isRunning && iconHover.hovered && !cell.dock.dragging
     visible: opacity > 0
     opacity: shown ? 1 : 0
     Behavior on opacity { NumberAnimation { duration: 120 } }

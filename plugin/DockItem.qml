@@ -228,6 +228,18 @@ Item {
     // badge's, not a launch. Checked by hover rather than an exclusive
     // grab — grabs are how the v1 right-click menu broke.
     onTapped: if (!pinHover.hovered) cell.dock.activate(cell.modelData, cell.entry)
+
+    // Click-and-hold is the trackpad-friendly route to the context menu
+    // (macOS dock behaviour). Qt suppresses `tapped` on the release that
+    // follows a long press, so holding never also launches. A hold that
+    // wanders past the drag threshold becomes a drag instead, and the
+    // DragHandler's exclusive grab cancels this handler before it fires.
+    longPressThreshold: 0.5
+    onLongPressed: {
+      if (pinHover.hovered || cell.dock.dragging) return
+      stackDwell.stop()
+      cell.dock.openMenu(cell)
+    }
   }
 
   // Pin badge: running-section items only, revealed by hover. One click

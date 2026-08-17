@@ -7,8 +7,9 @@ Two sections: **pinned** launchers on the left (glyphs or app icons, themed
 tiles), and — after an automatic divider — every **running app that isn't
 pinned**, derived live from the compositor and never written to config.
 Anything running carries an accent indicator; clicking it focuses its most
-recent window, wherever it is. Right-click for New Window, Pin/Unpin,
-per-window focus, and Close. Hover a running app for the pin badge; drag
+recent window, wherever it is. Right-click (or click-and-hold, for
+trackpads) for New Window, Pin/Unpin, per-window focus, and Close. Hover a
+running app for the pin badge; drag
 icons to reorder, and drag across the divider to pin or unpin. App icons
 can be colorized to the theme accent so arbitrary apps sit next to your
 curated glyphs as one set.

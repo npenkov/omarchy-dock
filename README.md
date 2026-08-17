@@ -2,14 +2,20 @@
 
 A macOS-style dock for the [Omarchy](https://omarchy.org/) shell. Hover the
 bottom edge of the screen and it slides up; move away and it hides again.
+It can live on any edge — bottom, top, or vertical against the left or
+right — aligned to the start, centre, or end of that edge (`edge`/`align`,
+or "Position on screen" in the configurator).
 
 Two sections: **pinned** launchers on the left (glyphs or app icons, themed
 tiles), and — after an automatic divider — every **running app that isn't
 pinned**, derived live from the compositor and never written to config.
 Anything running carries an accent indicator; clicking it focuses its most
 recent window, wherever it is. Right-click (or click-and-hold, for
-trackpads) for New Window, Pin/Unpin, per-window focus, and Close. Hover a
-running app for the pin badge; drag
+trackpads) for the app's own **Desktop Actions** (its `.desktop` jump list —
+a browser's private window, a launcher's saved hosts…), then New Window,
+Pin/Unpin, per-window focus, and Close. An app whose list changes at
+runtime can simply rewrite its `.desktop` file; the menu picks it up on
+the next open. Hover a running app for the pin badge; drag
 icons to reorder, and drag across the divider to pin or unpin. App icons
 can be colorized to the theme accent so arbitrary apps sit next to your
 curated glyphs as one set.
@@ -95,14 +101,16 @@ Settings on the plugin entry:
 | `runningIndicator` | `"dot"` (default), `"line"`, or `"none"` |
 | `tintIcons`, `tintRunning` | Colorize pinned / running app icons to the theme (defaults false / true) |
 | `hoverActivate` | Row-hover in the window stack focuses that window (default false) |
+| `edge` | Screen edge: `"bottom"` (default), `"top"`, `"left"`, or `"right"` — left/right give a vertical dock |
+| `align` | Placement along that edge: `"center"` (default), `"start"`, or `"end"` (`"left"`/`"right"`/`"top"`/`"bottom"` are accepted as aliases) |
 | `iconSize` | Icon edge length in px |
-| `labels` | Show a label above the hovered item |
+| `labels` | Show a label beside the hovered item (above a horizontal dock, inward of a vertical one) |
 | `magnify` | macOS-style hover magnification |
 | `tiles`, `tileStyle`, `tileOpacity`, `tileRadius` | Draw items as themed tiles |
 | `cornerRadius`, `edgeGap` | Shape and offset of the dock card |
-| `fullWidth` | Stretch the card across the monitor, edge gap on all sides (icons stay centred) |
+| `fullWidth` | Stretch the card along the whole edge, edge gap on all sides (icons stay centred) |
 | `revealDelay`, `hideDelay` | Hover-in and hover-out delays in ms |
-| `hotspotFullWidth`, `hotspotHeight` | Size of the bottom-edge trigger zone |
+| `hotspotFullWidth`, `hotspotHeight` | Size of the trigger zone on the dock's edge |
 | `hideOnLaunch` | Hide the dock after activating an item |
 | `showWhenEmpty` | Still reveal when there are no items |
 

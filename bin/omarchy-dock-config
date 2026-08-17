@@ -506,6 +506,39 @@ set_tile_style() {
   esac
 }
 
+# Which screen edge the dock lives on, and where along it. Two picks, so a
+# vertical dock can be asked "top, middle or bottom" in those words rather
+# than the start/center/end the config stores.
+set_position() {
+  local edge align pick cur_edge cur_align
+  cur_edge=$(dock_field '.edge // "bottom"')
+  cur_align=$(dock_field '.align // "center"')
+  pick=$(gum choose \
+    "Bottom edge — horizontal" \
+    "Top edge — horizontal" \
+    "Left edge — vertical" \
+    "Right edge — vertical" \
+    --header "Which screen edge?  (currently: $cur_edge)")
+  case $pick in
+    Bottom*) edge=bottom ;;
+    Top*)    edge=top ;;
+    Left*)   edge=left ;;
+    Right*)  edge=right ;;
+    *) return ;;
+  esac
+  if [[ $edge == left || $edge == right ]]; then
+    pick=$(gum choose "Top" "Middle" "Bottom" --header "Where along the $edge edge?  (currently: $cur_align)")
+    case $pick in Top) align=start ;; Middle) align=center ;; Bottom) align=end ;; *) return ;; esac
+  else
+    pick=$(gum choose "Left" "Centre" "Right" --header "Where along the $edge edge?  (currently: $cur_align)")
+    case $pick in Left) align=start ;; Centre) align=center ;; Right) align=end ;; *) return ;; esac
+  fi
+  local filter='.'
+  if [[ $edge == bottom ]]; then filter+=' | del(.edge)'; else filter+=" | .edge = \"$edge\""; fi
+  if [[ $align == center ]]; then filter+=' | del(.align)'; else filter+=" | .align = \"$align\""; fi
+  apply "$filter"
+}
+
 # Left unset, tiles follow the shell's corner radius exactly like every
 # button does — square in a square theme, rounded in a rounded one.
 set_tile_radius() {
@@ -540,6 +573,7 @@ appearance() {
   while true; do
     clear
     heading "Appearance"
+    printf '  position    %s edge, %s\n' "$(dock_field '.edge // "bottom"')" "$(dock_field '.align // "center"')"
     printf '  icon size   %s\n' "$(dock_field '.iconSize // 40')"
     printf '  spacing     %s\n' "$(dock_field '.spacing // 6')"
     printf '  padding     %s\n' "$(dock_field '.padding // 8')"
@@ -559,6 +593,7 @@ appearance() {
 
     local choice
     choice=$(gum choose \
+      "Position on screen" \
       "Icon size" "Spacing between icons" "Padding around icons" \
       "Icon tiles" "Tile style" "Tile opacity" "Tile roundness" "Icon size inside tile" \
       "Glyph colour" "Glyph size" \
@@ -567,10 +602,11 @@ appearance() {
       "Border" "Gap from screen edge" "Stay up on an empty workspace" \
       "Even out icon sizes" "Clear icon size adjustments" \
       "Magnify on hover" "Show labels" \
-      "Reveal delay" "Hide delay" "Hotspot spans full width" \
+      "Reveal delay" "Hide delay" "Stretch along the whole edge" "Hotspot spans the whole edge" \
       "Back" --header "What do you want to change?")
 
     case $choice in
+      "Position on screen")       set_position ;;
       "Icon size")                set_number iconSize "Icon size in pixels" 40 ;;
       "Spacing between icons")    set_number spacing "Gap between icons in pixels" 6 ;;
       "Padding around icons")     set_number padding "Padding inside the dock in pixels" 8 ;;
@@ -593,7 +629,8 @@ appearance() {
       "Show labels")              set_flag labels "Show a label above the hovered icon" ;;
       "Reveal delay")             set_number revealDelay "Delay before the dock appears (ms)" 90 ;;
       "Hide delay")               set_number hideDelay "Delay before the dock hides (ms)" 350 ;;
-      "Hotspot spans full width") set_flag hotspotFullWidth "Reveal from anywhere along the bottom edge" ;;
+      "Stretch along the whole edge") set_flag fullWidth "Stretch the dock card along the whole screen edge" ;;
+      "Hotspot spans the whole edge") set_flag hotspotFullWidth "Reveal from anywhere along the dock's screen edge" ;;
       *) return ;;
     esac
   done

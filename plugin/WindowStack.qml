@@ -88,22 +88,21 @@ PopupWindow {
     onTriggered: if (!stackHover.hovered && stack.dock.dockHovers === 0) stack.close()
   }
 
+  // Grows inward from a point just off the card, centred on the icon —
+  // same scheme as the context menu, see Dock.popupAnchorPoint.
   anchor {
     adjustment: PopupAdjustment.Slide
     edges: Edges.Top | Edges.Left
-    gravity: Edges.Top | Edges.Right
+    gravity: stack.dock.popupGravity
     window: stack.anchorCell ? stack.anchorCell.QsWindow.window : null
 
     onAnchoring: {
       var target = stack.anchorCell
       var window = target ? target.QsWindow.window : null
       if (!window) return
-      var pos = window.contentItem.mapFromItem(target, 0, 0)
-      var x = Math.round(pos.x + target.width / 2 - stack.implicitWidth / 2)
-      x = Math.max(0, Math.min(x, window.width - stack.implicitWidth))
-      anchor.rect.x = x
-      anchor.rect.y = Math.round(window.height - stack.dock.cardHeight - stack.dock.edgeGap
-                                 - Style.spacing.sm)
+      var p = stack.dock.popupAnchorPoint(target, window, stack.implicitWidth, stack.implicitHeight)
+      anchor.rect.x = p.x
+      anchor.rect.y = p.y
       anchor.rect.width = 1
       anchor.rect.height = 1
     }

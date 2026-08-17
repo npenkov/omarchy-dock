@@ -65,15 +65,22 @@ Item {
     return Math.max(1, Math.round(dock.slot * target / ink))
   }
 
-  width: dock.cellWidth(modelData)
-  height: dock.slot
+  // The slot is `slot` across the dock and cellSize() along it.
+  width:  dock.vertical ? dock.slot : dock.cellSize(modelData)
+  height: dock.vertical ? dock.cellSize(modelData) : dock.slot
 
-  // Placed by the dock's flow layout; while dragged, glued to the pointer
-  // instead, riding above the others.
+  // Placed by the dock's flow layout along the main axis; while dragged,
+  // glued to the pointer instead, riding above the others.
   readonly property bool dragged: dock.dragging && dock.dragIndex === cell.index
-  x: dragged ? dock.dragPointerX - dock.dragGrabDX : (dock.cellXs[cell.index] || 0)
+  readonly property real pos: dragged ? dock.dragPointer - dock.dragGrabD : (dock.cellPos[cell.index] || 0)
+  x: dock.vertical ? 0 : pos
+  y: dock.vertical ? pos : 0
   z: dragged ? 10 : 0
   Behavior on x {
+    enabled: !cell.dragged
+    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+  }
+  Behavior on y {
     enabled: !cell.dragged
     NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
   }
@@ -89,8 +96,8 @@ Item {
   Rectangle {
     visible: cell.isRule
     anchors.centerIn: parent
-    width: cell.dock.ruleWidth
-    height: Math.round(cell.dock.slot * 0.6)
+    width:  cell.dock.vertical ? Math.round(cell.dock.slot * 0.6) : cell.dock.ruleWidth
+    height: cell.dock.vertical ? cell.dock.ruleWidth : Math.round(cell.dock.slot * 0.6)
     color: Util.alpha(Color.popups.text, cell.isDivider ? 0.4 : 0.25)
   }
 
@@ -103,10 +110,14 @@ Item {
     width: cell.dock.slot
     height: cell.dock.slot
 
-    // Grows from its base so the icon lifts out of the dock rather than
-    // drifting through it. Suppressed while anything is being dragged —
-    // cells sliding under the pointer would pulse otherwise.
-    transformOrigin: Item.Bottom
+    // Grows from its base — the side facing the screen edge — so the icon
+    // lifts out of the dock rather than drifting through it. Suppressed
+    // while anything is being dragged — cells sliding under the pointer
+    // would pulse otherwise.
+    transformOrigin: cell.dock.edge === "top"   ? Item.Top
+                   : cell.dock.edge === "left"  ? Item.Left
+                   : cell.dock.edge === "right" ? Item.Right
+                   : Item.Bottom
     scale: (cell.dock.magnify && iconHover.hovered && !cell.dock.dragging) ? 1.18 : 1.0
     Behavior on scale {
       NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -182,11 +193,11 @@ Item {
     target: null
 
     onActiveChanged: {
-      if (active) cell.dock.beginDrag(cell, centroid.scenePosition.x)
+      if (active) cell.dock.beginDrag(cell, centroid.scenePosition.x, centroid.scenePosition.y)
       else cell.dock.endDrag()
     }
 
-    onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x)
+    onCentroidChanged: if (active) cell.dock.updateDrag(cell, centroid.scenePosition.x, centroid.scenePosition.y)
   }
 
   // Hover dwell for the window stack: a running icon held under the
@@ -218,7 +229,8 @@ Item {
         // Window coordinates for the label pill: map through whatever
         // containers sit between this cell and the window content item,
         // rather than hardcoding the chain of parents.
-        cell.dock.hoveredCenterX = cell.mapToItem(null, cell.width / 2, 0).x
+        var c = cell.mapToItem(null, cell.width / 2, cell.height / 2)
+        cell.dock.hoveredCenter = cell.dock.vertical ? c.y : c.x
       } else if (cell.dock.hoveredLabel === cell.label) {
         cell.dock.hoveredLabel = ""
       }
@@ -301,16 +313,25 @@ Item {
 
   // The running indicator: lit for any item with a live window — pinned or
   // not — in the theme accent. "dot" and "line" are the two shapes; "none"
-  // turns it off. It sits inside the slot so lighting up never reflows the
-  // dock.
+  // turns it off. It sits inside the slot, on the side facing the screen
+  // edge, so lighting up never reflows the dock.
   Rectangle {
+    readonly property bool line: cell.dock.runningIndicator === "line"
+    readonly property int along: line ? Math.round(cell.dock.slot * 0.38) : 5
+    readonly property int across: line ? 2 : 5
     visible: !cell.isRule && cell.dock.runningIndicator !== "none" && cell.wins.length > 0
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: 2
-    width: cell.dock.runningIndicator === "line" ? Math.round(cell.dock.slot * 0.38) : 5
-    height: cell.dock.runningIndicator === "line" ? 2 : 5
-    radius: cell.dock.runningIndicator === "line" ? 1 : 2.5
+    // Explicit geometry rather than anchors: swapping anchor sets when the
+    // edge changes left one stale, and a verticalCenter+bottom pair
+    // stretched the indicator over the whole tile.
+    x: cell.dock.vertical
+      ? (cell.dock.edge === "left" ? 2 : parent.width - width - 2)
+      : Math.round((parent.width - width) / 2)
+    y: cell.dock.vertical
+      ? Math.round((parent.height - height) / 2)
+      : (cell.dock.edge === "top" ? 2 : parent.height - height - 2)
+    width:  cell.dock.vertical ? across : along
+    height: cell.dock.vertical ? along : across
+    radius: line ? 1 : 2.5
     color: Color.accent
   }
 

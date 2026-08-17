@@ -6,9 +6,10 @@ import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
 
-// Auto-hiding launcher dock. The window parks just past the bottom edge and
-// slides back in when the pointer enters a thin hotspot at the bottom centre
-// of whichever monitor it is on.
+// Auto-hiding launcher dock. The window parks just past its screen edge
+// (bottom by default; `edge` picks top/left/right, `align` places it along
+// that edge) and slides back in when the pointer enters a thin hotspot
+// there on whichever monitor it is on.
 //
 // Parking rather than unmapping mirrors the bar: keeping the layer surface
 // and its scene graph alive makes a reveal a margin change instead of a
@@ -99,6 +100,30 @@ Item {
   // ------------------------------------------------------------- geometry
 
   readonly property var items: Array.isArray(config.items) ? config.items : []
+
+  // ------------------------------------------------------------- position
+  //
+  // `edge` is the screen edge the dock lives on; `align` places it along
+  // that edge — start/center/end read left/centre/right on a horizontal
+  // edge and top/middle/bottom on a vertical one. Everything below is
+  // written in terms of a *main* axis (along the edge: the flow of icons)
+  // and a *cross* axis (out from the edge: card thickness, label band,
+  // reveal slide), so a vertical dock is the same layout rotated rather
+  // than a second one.
+  readonly property string edge: {
+    var e = String(config.edge || "").toLowerCase()
+    return (e === "top" || e === "left" || e === "right") ? e : "bottom"
+  }
+  readonly property string align: {
+    var a = String(config.align || "").toLowerCase()
+    if (a === "left" || a === "top") return "start"
+    if (a === "right" || a === "bottom") return "end"
+    return (a === "start" || a === "end") ? a : "center"
+  }
+  readonly property bool vertical: edge === "left" || edge === "right"
+  // On left/top the screen edge is at the window's origin, so the edge-gap
+  // strip comes *before* the card in window coordinates.
+  readonly property bool edgeFirst: edge === "left" || edge === "top"
 
   // -------------------------------------------------------------- running
   //
@@ -272,10 +297,10 @@ Item {
 
   // ----------------------------------------------------------------- drag
   //
-  // Cells are positioned by cellXs rather than a Row, so the layout can
-  // open a live gap at the insertion point while something is dragged —
-  // the other cells slide aside (Behavior on x in DockItem), macOS-style.
-  // The card's width never changes mid-drag: the dragged cell keeps its
+  // Cells are positioned by cellPos rather than a Row/Column, so the layout
+  // can open a live gap at the insertion point while something is dragged —
+  // the other cells slide aside (Behavior on x/y in DockItem), macOS-style.
+  // The card's length never changes mid-drag: the dragged cell keeps its
   // slot in the total, it just leaves the flow.
   //
   // Crossing the divider is the pin gesture: a running app dropped in the
@@ -283,28 +308,37 @@ Item {
   // divider unpins. Both persist through the configurator CLI and come
   // back via the config reload. The derived divider itself is not
   // draggable; spacers are items and move like anything else.
+  //
+  // All drag coordinates are main-axis: x on a horizontal dock, y on a
+  // vertical one.
 
   property int dragIndex: -1
-  property real dragPointerX: 0
-  property real dragGrabDX: 0
+  property real dragPointer: 0
+  property real dragGrabD: 0
   readonly property bool dragging: dragIndex >= 0
 
-  function beginDrag(cell, sceneX) {
+  // Main-axis coordinate of a scene point, in the cell's parent's space.
+  function mainCoord(cell, sceneX, sceneY) {
+    var p = cell.parent.mapFromItem(null, sceneX, sceneY)
+    return vertical ? p.y : p.x
+  }
+
+  function beginDrag(cell, sceneX, sceneY) {
     // A click-and-hold opens the menu at 0.5s; if the hold then turns into
     // a drag, the menu was a misread — fold it and let the drag through
     // (macOS does the same). The menu's focus grab covers the dock, so the
     // pointer motion that got us here was never in doubt.
     contextMenu.close()
     windowStack.close()
-    var rx = cell.parent.mapFromItem(null, sceneX, 0).x
-    dragGrabDX = rx - cell.x
-    dragPointerX = rx
+    var r = mainCoord(cell, sceneX, sceneY)
+    dragGrabD = r - (vertical ? cell.y : cell.x)
+    dragPointer = r
     dragIndex = cell.index
     hoveredLabel = ""
   }
 
-  function updateDrag(cell, sceneX) {
-    dragPointerX = cell.parent.mapFromItem(null, sceneX, 0).x
+  function updateDrag(cell, sceneX, sceneY) {
+    dragPointer = mainCoord(cell, sceneX, sceneY)
   }
 
   // Insertion slot among the un-dragged cells, from the dragged cell's
@@ -313,13 +347,13 @@ Item {
   // oscillate).
   readonly property int dropIndex: {
     if (!dragging) return -1
-    var draggedCenter = dragPointerX - dragGrabDX + cellWidth(displayItems[dragIndex]) / 2
+    var draggedCenter = dragPointer - dragGrabD + cellSize(displayItems[dragIndex]) / 2
     var x = 0
     var flow = 0
     var result = 0
     for (var i = 0; i < displayItems.length; i++) {
       if (i === dragIndex) continue
-      var w = cellWidth(displayItems[i])
+      var w = cellSize(displayItems[i])
       if (draggedCenter > x + w / 2) result = flow + 1
       x += w + gap
       flow++
@@ -327,18 +361,18 @@ Item {
     return result
   }
 
-  // x for every cell: cumulative flow positions, with a dragged-cell-sized
-  // gap held open at dropIndex. The dragged cell's slot reads 0 — its x is
-  // bound to the pointer instead.
-  readonly property var cellXs: {
+  // Main-axis offset for every cell: cumulative flow positions, with a
+  // dragged-cell-sized gap held open at dropIndex. The dragged cell's slot
+  // reads 0 — its position is bound to the pointer instead.
+  readonly property var cellPos: {
     var xs = new Array(displayItems.length)
     var x = 0
     var flow = 0
-    var dw = dragging ? cellWidth(displayItems[dragIndex]) + gap : 0
+    var dw = dragging ? cellSize(displayItems[dragIndex]) + gap : 0
     for (var i = 0; i < displayItems.length; i++) {
       if (i === dragIndex) { xs[i] = 0; continue }
       xs[i] = x + (dragging && flow >= dropIndex ? dw : 0)
-      x += cellWidth(displayItems[i]) + gap
+      x += cellSize(displayItems[i]) + gap
       flow++
     }
     return xs
@@ -555,41 +589,101 @@ Item {
     : Border.none()
   readonly property var tipBorder: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, Math.max(1, Style.space(1)))
 
-  function cellWidth(item) {
+  // A cell's extent along the main axis.
+  function cellSize(item) {
     return Util.isPlainObject(item) && (item.spacer === true || item.__divider === true)
       ? root.ruleWidth : root.slot
   }
 
-  readonly property int contentWidth: {
+  readonly property int contentLength: {
     var total = 0
     var list = displayItems
-    for (var i = 0; i < list.length; i++) total += cellWidth(list[i])
+    for (var i = 0; i < list.length; i++) total += cellSize(list[i])
     return total + Math.max(0, list.length - 1) * gap
   }
 
-  // Content-sized card width. With `fullWidth` the card stretches to the
-  // monitor instead — computed per window, since monitors differ — and
-  // this value becomes its floor.
+  // Content-sized card. `cardMain` runs along the edge, `cardCross` out
+  // from it; cardWidth/cardHeight are the on-screen dimensions those become
+  // for the current edge. With `fullWidth` the card stretches along the
+  // whole edge instead — computed per window, since monitors differ — and
+  // cardMain becomes its floor.
   readonly property bool fullWidth: flag("fullWidth", false)
-  readonly property int cardWidth: Math.round(Border.left(dockBorder) + pad + contentWidth + pad + Border.right(dockBorder))
-  readonly property int cardHeight: Math.round(Border.top(dockBorder) + pad + slot + pad + Border.bottom(dockBorder))
+  readonly property int cardMain: Math.round(
+    (vertical ? Border.top(dockBorder) : Border.left(dockBorder)) + pad + contentLength + pad
+    + (vertical ? Border.bottom(dockBorder) : Border.right(dockBorder)))
+  readonly property int cardCross: Math.round(
+    (vertical ? Border.left(dockBorder) : Border.top(dockBorder)) + pad + slot + pad
+    + (vertical ? Border.right(dockBorder) : Border.bottom(dockBorder)))
+  readonly property int cardWidth: vertical ? cardCross : cardMain
+  readonly property int cardHeight: vertical ? cardMain : cardCross
 
-  // The label pill sits in a band above the card. The band is part of the
-  // window so tooltips are never clipped, but it stays outside the input
-  // mask so it cannot swallow clicks meant for the desktop.
+  // The label pill sits in a band on the inward side of the card. The band
+  // is part of the window so tooltips are never clipped, but it stays
+  // outside the input mask so it cannot swallow clicks meant for the
+  // desktop. Beside a vertical dock the band has to be wide enough for the
+  // text itself, not just one line tall.
   readonly property int labelHeight: Math.round(Style.font.bodySmall + Style.spacing.sm * 2 + Style.space(2))
-  readonly property int labelBand: labels ? labelHeight + Style.spacing.sm : 0
+  readonly property int labelBand: !labels ? 0
+    : vertical ? Style.space(220) + Style.spacing.sm
+               : labelHeight + Style.spacing.sm
 
   // Gap between card and screen edge. The window still reaches the edge —
-  // the strip below the card is live hover area, so sliding the pointer off
-  // the bottom of the dock does not drop the reveal. Left unset it tracks
-  // the theme's edge gap; set it to 0 to sit flush against the edge.
+  // the strip between card and edge is live hover area, so sliding the
+  // pointer off the outer side of the dock does not drop the reveal. Left
+  // unset it tracks the theme's edge gap; set it to 0 to sit flush.
   readonly property int edgeGap: root.config.edgeGap !== undefined
     ? Style.space(num0("edgeGap", 0))
     : Math.max(Style.gapsOut, Style.space(4))
 
-  readonly property int windowHeight: labelBand + cardHeight + edgeGap
-  readonly property int windowWidth: cardWidth + (labels ? Style.space(240) : 0)
+  // Window extents. Cross: edge strip + card + label band. Main: the card
+  // plus slack for a label centred on an end icon to spill into (a vertical
+  // dock's labels sit beside the card, so it needs none).
+  readonly property int windowCross: labelBand + cardCross + edgeGap
+  readonly property int windowMain: cardMain + (labels && !vertical ? Style.space(240) : 0)
+  readonly property int windowWidth: vertical ? windowCross : windowMain
+  readonly property int windowHeight: vertical ? windowMain : windowCross
+
+  // Where along the cross axis, in window coordinates, the card's edge
+  // strip and the card itself begin.
+  readonly property int hitCross: edgeFirst ? 0 : labelBand
+  readonly property int cardCrossPos: edgeFirst ? edgeGap : labelBand
+  // The inward face of the card: where popups and labels hang off.
+  readonly property int cardInnerFace: edgeFirst ? edgeGap + cardCross : labelBand
+
+  // Popups (menu, window stack) hang off the card's inward face, centred on
+  // the icon along the edge. Gravity is the direction the popup grows in
+  // from its 1×1 anchor point; the point sits a small gap inward of the
+  // card, in the label band, and is clamped so the popup stays inside the
+  // dock window along the edge (the anchor rect must lie within the parent
+  // surface — Hyprland misplaces out-of-bounds anchors).
+  readonly property int popupGravity: edge === "bottom" ? (Edges.Top | Edges.Right)
+                                    : edge === "top"    ? (Edges.Bottom | Edges.Right)
+                                    : edge === "left"   ? (Edges.Right | Edges.Bottom)
+                                    :                     (Edges.Left | Edges.Bottom)
+
+  function popupAnchorPoint(target, window, popupW, popupH) {
+    var pos = window.contentItem.mapFromItem(target, 0, 0)
+    var gapIn = Style.spacing.sm
+    var across = edgeFirst ? cardInnerFace + gapIn : cardInnerFace - gapIn
+    if (vertical) {
+      var y = Math.round(pos.y + target.height / 2 - popupH / 2)
+      y = Math.max(0, Math.min(y, window.height - popupH))
+      return { x: across, y: y }
+    }
+    var x = Math.round(pos.x + target.width / 2 - popupW / 2)
+    x = Math.max(0, Math.min(x, window.width - popupW))
+    return { x: x, y: across }
+  }
+
+  // Main-axis offset of a card of the given length inside a window of the
+  // given length, per `align`. Centre is the layer-shell default placement
+  // of the window itself; start/end anchor the window to that side and put
+  // the card flush with it.
+  function cardMainOffset(winLen, cardLen) {
+    if (align === "start") return 0
+    if (align === "end") return Math.max(0, winLen - cardLen)
+    return Math.round((winLen - cardLen) / 2)
+  }
 
   // ---------------------------------------------------------- reveal state
 
@@ -602,7 +696,8 @@ Item {
   property bool revealed: false
 
   property string hoveredLabel: ""
-  property real hoveredCenterX: 0
+  // Main-axis centre of the hovered icon, in window coordinates.
+  property real hoveredCenter: 0
   readonly property bool wantOpen: active && (hotspotHovers > 0 || dockHovers > 0)
 
   // True when the named output's active workspace holds no windows.
@@ -812,6 +907,10 @@ Item {
         targetScreen: root.targetScreen,
         showWhenEmpty: root.showWhenEmpty,
         border: root.flag("border", true),
+        edge: root.edge,
+        align: root.align,
+        vertical: root.vertical,
+        fullWidth: root.fullWidth,
         edgeGap: root.edgeGap,
         cardWidth: root.cardWidth,
         cardHeight: root.cardHeight,
@@ -919,35 +1018,62 @@ Item {
       launchNew(item, entry)
       return
     }
+    runDesktopAction(entry, action)
+  }
+
+  // Run one of an entry's Desktop Actions the way gtk-launch would run the
+  // entry itself: through uwsm-app, in the entry's working directory.
+  function runDesktopAction(entry, action) {
+    if (!action || !action.command || action.command.length < 1) return
     if (root.flag("hideOnLaunch", true)) root.close()
     var argv = ["uwsm-app", "--"]
     for (var i = 0; i < action.command.length; i++) argv.push(String(action.command[i]))
     var spec = { command: argv }
-    if (entry.workingDirectory) spec.workingDirectory = String(entry.workingDirectory)
+    if (entry && entry.workingDirectory) spec.workingDirectory = String(entry.workingDirectory)
     Quickshell.execDetached(spec)
   }
 
-  // The entry's new-window desktop action, if it has one and can run it
-  // outside a terminal (actions inherit Terminal=, and gtk-launch is the
-  // only path here that honours it).
-  function newWindowAction(entry) {
-    if (!entry || entry.runInTerminal || !entry.actions) return null
+  function isNewWindowAction(action) {
+    var id = String(action && action.id || "").toLowerCase().replace(/_/g, "-")
+    return id === "new-window" || id === "newwindow"
+  }
+
+  // The entry's runnable Desktop Actions — the freedesktop jump list
+  // ("Additional applications actions"). Only for entries that can run
+  // outside a terminal: actions inherit Terminal=, and gtk-launch is the
+  // only path here that honours it.
+  function desktopActions(entry) {
+    if (!entry || entry.runInTerminal || !entry.actions) return []
+    var out = []
     var list = entry.actions
     for (var i = 0; i < list.length; i++) {
       var a = list[i]
       if (!a || !a.command || a.command.length < 1) continue
-      var id = String(a.id || "").toLowerCase().replace(/_/g, "-")
-      if (id === "new-window" || id === "newwindow") return a
+      out.push(a)
     }
+    return out
+  }
+
+  // The new-window action, if the entry ships one; the context menu's New
+  // Window row runs it instead of a plain launch.
+  function newWindowAction(entry) {
+    var list = root.desktopActions(entry)
+    for (var i = 0; i < list.length; i++)
+      if (root.isNewWindowAction(list[i])) return list[i]
     return null
+  }
+
+  // Every other action, for the menu's app-specific section.
+  function menuActions(entry) {
+    return root.desktopActions(entry).filter(function (a) { return !root.isNewWindowAction(a) })
   }
 
   // ---------------------------------------------------------- reveal zone
 
-  // A sliver at the bottom edge, sized to the dock by default so the reveal
-  // zone is exactly where the dock will appear. Lives on the Top layer; the
-  // dock itself is on Overlay, so where the two overlap the dock wins the
-  // pointer and the hotspot never steals a click.
+  // A sliver along the dock's edge, sized to the dock by default so the
+  // reveal zone is exactly where the dock will appear. Lives on the Top
+  // layer; the dock itself is on Overlay, so where the two overlap the dock
+  // wins the pointer and the hotspot never steals a click.
   Variants {
     model: Quickshell.screens
 
@@ -958,22 +1084,35 @@ Item {
       screen: modelData
       visible: root.active
       color: "transparent"
-      exclusionMode: ExclusionMode.Ignore
+      // Reserve nothing, but respect what others reserve: the bar's
+      // exclusive zone pushes the zone (and the dock) off the bar, so a
+      // top or vertical dock lands beside it rather than under it.
+      exclusionMode: ExclusionMode.Normal
+      exclusiveZone: 0
       WlrLayershell.namespace: "omarchy-dock-hotspot"
       WlrLayershell.layer: WlrLayer.Top
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
+      // A full-length dock gets a full-length trigger zone regardless of
+      // the hotspot setting — a centred sliver under a monitor-wide card
+      // would be a guessing game. Otherwise the zone follows the card's
+      // alignment: anchored to the same side, offset by the same edge gap.
+      readonly property bool span: root.hotspotFullWidth || root.fullWidth
       anchors {
-        bottom: true
-        // A full-width dock gets a full-width trigger zone regardless of
-        // the hotspot setting — a centred sliver under a monitor-wide
-        // card would be a guessing game.
-        left: root.hotspotFullWidth || root.fullWidth
-        right: root.hotspotFullWidth || root.fullWidth
+        bottom: root.edge === "bottom" || (root.vertical && (span || root.align === "end"))
+        top:    root.edge === "top"    || (root.vertical && (span || root.align === "start"))
+        left:   root.edge === "left"   || (!root.vertical && (span || root.align === "start"))
+        right:  root.edge === "right"  || (!root.vertical && (span || root.align === "end"))
+      }
+      margins {
+        left:   (!root.vertical && !span && root.align === "start") ? root.edgeGap : 0
+        right:  (!root.vertical && !span && root.align === "end")   ? root.edgeGap : 0
+        top:    (root.vertical  && !span && root.align === "start") ? root.edgeGap : 0
+        bottom: (root.vertical  && !span && root.align === "end")   ? root.edgeGap : 0
       }
 
-      implicitWidth: (root.hotspotFullWidth || root.fullWidth) ? 0 : root.cardWidth
-      implicitHeight: root.hotspotHeight
+      implicitWidth:  root.vertical ? root.hotspotHeight : (span ? 0 : root.cardMain)
+      implicitHeight: root.vertical ? (span ? 0 : root.cardMain) : root.hotspotHeight
 
       // The handler needs an Item to attach to; a pointer handler parented
       // straight to the window never receives anything.
@@ -1022,30 +1161,48 @@ Item {
       screen: modelData
       visible: root.active
       color: "transparent"
-      exclusionMode: ExclusionMode.Ignore
+      // Zero exclusive zone, but not Ignore: the dock keeps out of the
+      // area the bar (or any other panel) has reserved, whichever edge it
+      // and the bar are on — see the hotspot above.
+      exclusionMode: ExclusionMode.Normal
+      exclusiveZone: 0
       WlrLayershell.namespace: "omarchy-dock"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-      // Bottom only: layer-shell centres a surface on any axis it is not
-      // anchored to, which is exactly the placement we want. Full-width
-      // anchors both sides instead, and the card takes the monitor's
-      // width minus the edge gap on either flank.
-      anchors.bottom: true
-      anchors.left: root.fullWidth
-      anchors.right: root.fullWidth
+      // Anchored to its edge. Along the edge, layer-shell centres a surface
+      // on any axis it is not anchored to — the `center` alignment for
+      // free; start/end anchor that side and offset by the edge gap so the
+      // card sits as far from the corner as it does from the edge.
+      // Full-length anchors both sides instead, and the card takes the
+      // monitor's length minus the edge gap on either flank.
+      readonly property bool anchorStart: root.fullWidth || root.align === "start"
+      readonly property bool anchorEnd: root.fullWidth || root.align === "end"
+      anchors.bottom: root.edge === "bottom" || (root.vertical && anchorEnd)
+      anchors.top:    root.edge === "top"    || (root.vertical && anchorStart)
+      anchors.left:   root.edge === "left"   || (!root.vertical && anchorStart)
+      anchors.right:  root.edge === "right"  || (!root.vertical && anchorEnd)
 
-      readonly property int cardW: root.fullWidth
-        ? Math.max(root.cardWidth, dockWindow.width - root.edgeGap * 2)
-        : root.cardWidth
+      // Card length along the edge, and its offset within the window.
+      readonly property int winMain: root.vertical ? dockWindow.height : dockWindow.width
+      readonly property int cardLen: root.fullWidth
+        ? Math.max(root.cardMain, winMain - root.edgeGap * 2)
+        : root.cardMain
+      readonly property int cardOffset: root.fullWidth
+        ? Math.round((winMain - cardLen) / 2)
+        : root.cardMainOffset(winMain, cardLen)
+
+      // On-screen card size for this window.
+      readonly property int cardW: root.vertical ? root.cardCross : cardLen
+      readonly property int cardH: root.vertical ? cardLen : root.cardCross
 
       implicitWidth: root.windowWidth
       implicitHeight: root.windowHeight
 
-      // Input is confined to the card and the strip beneath it. The label
-      // band and the empty width either side of it stay click-through.
-      // Bound to explicit bounds rather than `item:` — an item-shaped region
-      // never picked up hitArea's geometry.
+      // Input is confined to the card and the strip between it and the
+      // edge. The label band and the empty length either side of the card
+      // stay click-through. Bound to explicit bounds rather than `item:` —
+      // an item-shaped region never picked up hitArea's geometry.
       mask: Region {
         x: hitArea.x
         y: hitArea.y
@@ -1059,19 +1216,26 @@ Item {
         NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
       }
 
+      // Parked = pushed out past its own edge. The start/end margins keep
+      // the card an edge gap away from the corner it's aligned to.
+      readonly property int park: -Math.round(dockWindow.slide * (root.windowCross + Style.space(6)))
+      readonly property int sideGap: (root.fullWidth || root.align === "center") ? 0 : root.edgeGap
       margins {
-        bottom: -Math.round(dockWindow.slide * (root.windowHeight + Style.space(6)))
+        bottom: root.edge === "bottom" ? park : (root.vertical  && root.align === "end"   ? sideGap : 0)
+        top:    root.edge === "top"    ? park : (root.vertical  && root.align === "start" ? sideGap : 0)
+        left:   root.edge === "left"   ? park : (!root.vertical && root.align === "start" ? sideGap : 0)
+        right:  root.edge === "right"  ? park : (!root.vertical && root.align === "end"   ? sideGap : 0)
       }
 
-      // The card and the strip of edge gap below it are one subtree, so the
-      // whole reveal region hovers as a unit. As siblings the card sat on
-      // top of the hover area and swallowed everything aimed at it.
+      // The card and the strip of edge gap outside it are one subtree, so
+      // the whole reveal region hovers as a unit. As siblings the card sat
+      // on top of the hover area and swallowed everything aimed at it.
       Item {
         id: hitArea
-        x: Math.round((dockWindow.width - dockWindow.cardW) / 2)
-        y: root.labelBand
-        width: dockWindow.cardW
-        height: root.cardHeight + root.edgeGap
+        x: root.vertical ? root.hitCross : dockWindow.cardOffset
+        y: root.vertical ? dockWindow.cardOffset : root.hitCross
+        width:  root.vertical ? root.cardCross + root.edgeGap : dockWindow.cardW
+        height: root.vertical ? dockWindow.cardH : root.cardCross + root.edgeGap
 
         HoverHandler {
           id: dockHover
@@ -1089,10 +1253,12 @@ Item {
 
         BorderSurface {
           id: card
-          x: 0
-          y: 0
+          // Inside the hit area the card sits away from the edge strip:
+          // after it on left/top, before it on right/bottom.
+          x: (root.vertical && root.edgeFirst) ? root.edgeGap : 0
+          y: (!root.vertical && root.edgeFirst) ? root.edgeGap : 0
           width: dockWindow.cardW
-          height: root.cardHeight
+          height: dockWindow.cardH
           radius: root.cardRadius
           // The popup surface, not the raw palette background: a theme that
           // tints its popups should tint the dock the same way.
@@ -1128,13 +1294,13 @@ Item {
             }
           }
 
-          // Not a Row: cells place themselves from root.cellXs so a drag
-          // can hold a gap open while the others slide aside.
+          // Not a Row/Column: cells place themselves from root.cellPos so
+          // a drag can hold a gap open while the others slide aside.
           Item {
             id: row
             anchors.centerIn: parent
-            width: root.contentWidth
-            height: root.slot
+            width:  root.vertical ? root.slot : root.contentLength
+            height: root.vertical ? root.contentLength : root.slot
 
             Repeater {
               model: root.displayItems
@@ -1150,14 +1316,19 @@ Item {
       BorderSurface {
         id: tip
         visible: root.labels && dockWindow.shown && root.hoveredLabel !== "" && !root.dragging
-        y: 0
         height: root.labelHeight
         width: Math.round(tipText.implicitWidth + Style.spacing.xxl * 2)
-        // Centred on the hovered icon, clamped so a label near either end of
-        // a wide dock stays inside the window.
-        x: Math.round(Math.max(Style.spacing.sm,
-             Math.min(dockWindow.width - width - Style.spacing.sm,
-                      root.hoveredCenterX - width / 2)))
+        // Centred on the hovered icon along the edge, clamped so a label
+        // near either end of the dock stays inside the window; on the cross
+        // axis it hangs off the card's inward face, in the label band.
+        readonly property int along: Math.round(Math.max(Style.spacing.sm,
+          Math.min((root.vertical ? dockWindow.height - height : dockWindow.width - width) - Style.spacing.sm,
+                   root.hoveredCenter - (root.vertical ? height : width) / 2)))
+        readonly property int across: root.edgeFirst
+          ? root.cardInnerFace + Style.spacing.sm
+          : root.labelBand - Style.spacing.sm - (root.vertical ? width : height)
+        x: root.vertical ? across : along
+        y: root.vertical ? along : across
         // The tooltip picks up the card's rounding so the two read as one
         // component, capped since a small pill can't take a large radius.
         radius: Math.min(root.cardRadius, Math.round(root.labelHeight / 2))

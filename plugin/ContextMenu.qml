@@ -73,6 +73,16 @@ PopupWindow {
   readonly property var rows: {
     if (!open) return []
     var out = []
+    // The app's own Desktop Actions first — its jump list (a browser's
+    // private window, an RDP manager's saved hosts…) is the reason to
+    // right-click an icon; the dock's own rows follow.
+    var acts = dock.menuActions(entry)
+    if (acts.length > 0) {
+      for (var a = 0; a < acts.length; a++)
+        out.push({ kind: "action", glyph: "󰅂", label: String(acts[a].name || acts[a].id || "Action"),
+                   act: "desktop-action", actionIndex: a })
+      out.push({ kind: "sep" })
+    }
     if (launchable)
       out.push({ kind: "action", glyph: "󰐕", label: "New Window", act: "launch" })
     if (isRunningItem)
@@ -101,7 +111,11 @@ PopupWindow {
     var theWins = menu.wins.slice()
     menu.close()
 
-    if (row.act === "launch") menu.dock.launchNewWindow(theItem, theEntry)
+    if (row.act === "desktop-action") {
+      var acts = menu.dock.menuActions(theEntry)
+      if (acts[row.actionIndex]) menu.dock.runDesktopAction(theEntry, acts[row.actionIndex])
+    }
+    else if (row.act === "launch") menu.dock.launchNewWindow(theItem, theEntry)
     else if (row.act === "pin") menu.dock.requestPin(theItem)
     else if (row.act === "unpin") menu.dock.requestUnpin(theItem)
     else if (row.act === "close-wins") { for (var i = 0; i < theWins.length; i++) theWins[i].close() }
@@ -153,27 +167,22 @@ PopupWindow {
     onCleared: menu.close()
   }
 
-  // The popup grows upward from a 1×1 anchor point just above the dock
-  // card, centred on the icon. The rect has to sit inside the dock surface
-  // (an out-of-bounds anchor is undefined and Hyprland misplaces it), which
-  // is why it's a point at the card's top edge with Top gravity rather than
-  // a rect above the dock.
+  // The popup grows inward from a 1×1 anchor point just off the dock card,
+  // centred on the icon — see Dock.popupAnchorPoint for the geometry and
+  // why it's a point rather than a rect beyond the dock.
   anchor {
     adjustment: PopupAdjustment.Slide
     edges: Edges.Top | Edges.Left
-    gravity: Edges.Top | Edges.Right
+    gravity: menu.dock.popupGravity
     window: menu.anchorCell ? menu.anchorCell.QsWindow.window : null
 
     onAnchoring: {
       var target = menu.anchorCell
       var window = target ? target.QsWindow.window : null
       if (!window) return
-      var pos = window.contentItem.mapFromItem(target, 0, 0)
-      var x = Math.round(pos.x + target.width / 2 - menu.implicitWidth / 2)
-      x = Math.max(0, Math.min(x, window.width - menu.implicitWidth))
-      anchor.rect.x = x
-      anchor.rect.y = Math.round(window.height - menu.dock.cardHeight - menu.dock.edgeGap
-                                 - Style.spacing.sm)
+      var p = menu.dock.popupAnchorPoint(target, window, menu.implicitWidth, menu.implicitHeight)
+      anchor.rect.x = p.x
+      anchor.rect.y = p.y
       anchor.rect.width = 1
       anchor.rect.height = 1
     }

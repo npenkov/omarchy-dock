@@ -359,8 +359,13 @@ Item {
 
     BorderSurface {
       id: card
+      // Nudged away from whichever edge the dock is on, so live edits show
+      // on a dock the card isn't covering.
       anchors.centerIn: parent
-      anchors.verticalCenterOffset: -Math.round((dock.cardHeight + dock.edgeGap + dock.labelBand) / 2)
+      anchors.verticalCenterOffset: dock.vertical ? 0
+        : (dock.edge === "top" ? 1 : -1) * Math.round(dock.windowCross / 2)
+      anchors.horizontalCenterOffset: !dock.vertical ? 0
+        : (dock.edge === "left" ? 1 : -1) * Math.round(dock.windowCross / 2)
       width: Math.min(Style.space(640), panel.width - Style.space(40))
       height: Math.min(Style.space(430), panel.height - Style.space(40))
       radius: Style.cornerRadius
@@ -691,6 +696,8 @@ Item {
           // default via `set <key> null`.
           Repeater {
             model: [
+              { key: "edge", label: "SCREEN EDGE", type: "enum", options: ["bottom", "top", "left", "right"], dflt: "bottom" },
+              { key: "align", label: "ALIGN ALONG EDGE", type: "enum", options: ["start", "center", "end"], dflt: "center" },
               { key: "iconSize", label: "ICON SIZE", type: "num", from: 24, to: 96, step: 2, dflt: 40 },
               { key: "spacing", label: "SPACING", type: "num", from: 0, to: 24, step: 1, dflt: 6 },
               { key: "padding", label: "PADDING", type: "num", from: 0, to: 24, step: 1, dflt: 8 },
@@ -698,14 +705,14 @@ Item {
               { key: "revealDelay", label: "REVEAL DELAY (MS)", type: "num", from: 0, to: 600, step: 10, dflt: 90 },
               { key: "hideDelay", label: "HIDE DELAY (MS)", type: "num", from: 0, to: 1500, step: 25, dflt: 350 },
               { key: "hotspotHeight", label: "HOTSPOT HEIGHT", type: "num", from: 1, to: 12, step: 1, dflt: 2 },
-              { key: "fullWidth", label: "Full-width dock", type: "bool", dflt: false },
+              { key: "fullWidth", label: "Stretch along the whole edge", type: "bool", dflt: false },
               { key: "labels", label: "Labels on hover", type: "bool", dflt: true },
               { key: "magnify", label: "Hover magnify", type: "bool", dflt: true },
               { key: "tiles", label: "Tiles behind icons", type: "bool", dflt: false },
               { key: "border", label: "Card border", type: "bool", dflt: true },
               { key: "hideOnLaunch", label: "Hide after launching", type: "bool", dflt: true },
               { key: "showWhenEmpty", label: "Stay up on empty workspaces", type: "bool", dflt: false },
-              { key: "hotspotFullWidth", label: "Full-width hotspot", type: "bool", dflt: false },
+              { key: "hotspotFullWidth", label: "Hotspot spans the whole edge", type: "bool", dflt: false },
               { key: "showRunning", label: "Show running apps", type: "bool", dflt: true },
               { key: "tintIcons", label: "Tint pinned icons", type: "bool", dflt: false },
               { key: "tintRunning", label: "Tint running icons", type: "bool", dflt: true },

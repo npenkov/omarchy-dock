@@ -168,12 +168,16 @@ Item {
     }
   }
 
-  // Drag-to-reorder (and, across the divider, drag-to-pin/unpin). The
-  // handler's default activation threshold is what keeps a sloppy click a
-  // click. target: null — the dock's flow layout owns all positioning.
+  // Shift+drag to reorder (and, across the divider, to pin/unpin). Shift
+  // is the arm switch: it keeps a trackpad click-and-hold from wandering
+  // into a reorder, and tells the long-press handler below that a hold is
+  // the start of a drag, not a request for the menu. The handler's default
+  // activation threshold is what keeps a sloppy click a click. target:
+  // null — the dock's flow layout owns all positioning.
   DragHandler {
     id: dragHandler
     enabled: !cell.isDivider
+    acceptedModifiers: Qt.ShiftModifier
     target: null
 
     onActiveChanged: {
@@ -231,12 +235,14 @@ Item {
 
     // Click-and-hold is the trackpad-friendly route to the context menu
     // (macOS dock behaviour). Qt suppresses `tapped` on the release that
-    // follows a long press, so holding never also launches. A hold that
-    // wanders past the drag threshold becomes a drag instead, and the
-    // DragHandler's exclusive grab cancels this handler before it fires.
+    // follows a long press, so holding never also launches. Shift means
+    // the hold is the start of a Shift+drag reorder, so no menu — whether
+    // the pointer has moved yet (DragHandler's exclusive grab cancels this
+    // handler) or not (checked here).
     longPressThreshold: 0.5
     onLongPressed: {
       if (pinHover.hovered || cell.dock.dragging) return
+      if (point.modifiers & Qt.ShiftModifier) return
       stackDwell.stop()
       cell.dock.openMenu(cell)
     }

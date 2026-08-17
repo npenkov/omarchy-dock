@@ -290,6 +290,12 @@ Item {
   readonly property bool dragging: dragIndex >= 0
 
   function beginDrag(cell, sceneX) {
+    // A click-and-hold opens the menu at 0.5s; if the hold then turns into
+    // a drag, the menu was a misread — fold it and let the drag through
+    // (macOS does the same). The menu's focus grab covers the dock, so the
+    // pointer motion that got us here was never in doubt.
+    contextMenu.close()
+    windowStack.close()
     var rx = cell.parent.mapFromItem(null, sceneX, 0).x
     dragGrabDX = rx - cell.x
     dragPointerX = rx

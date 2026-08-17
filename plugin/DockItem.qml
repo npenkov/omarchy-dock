@@ -168,16 +168,17 @@ Item {
     }
   }
 
-  // Shift+drag to reorder (and, across the divider, to pin/unpin). Shift
-  // is the arm switch: it keeps a trackpad click-and-hold from wandering
-  // into a reorder, and tells the long-press handler below that a hold is
-  // the start of a drag, not a request for the menu. The handler's default
-  // activation threshold is what keeps a sloppy click a click. target:
-  // null — the dock's flow layout owns all positioning.
+  // Drag-to-reorder (and, across the divider, drag-to-pin/unpin). The
+  // handler's default activation threshold is what keeps a sloppy click a
+  // click. target: null — the dock's flow layout owns all positioning.
+  //
+  // No modifier gate: the dock's layer surface takes no keyboard focus
+  // (WlrKeyboardFocus.None), so the compositor never sends it modifier
+  // state and Shift/Ctrl read as unpressed here. Disambiguation from the
+  // click-and-hold menu is by motion instead — see the TapHandler below.
   DragHandler {
     id: dragHandler
     enabled: !cell.isDivider
-    acceptedModifiers: Qt.ShiftModifier
     target: null
 
     onActiveChanged: {
@@ -235,14 +236,14 @@ Item {
 
     // Click-and-hold is the trackpad-friendly route to the context menu
     // (macOS dock behaviour). Qt suppresses `tapped` on the release that
-    // follows a long press, so holding never also launches. Shift means
-    // the hold is the start of a Shift+drag reorder, so no menu — whether
-    // the pointer has moved yet (DragHandler's exclusive grab cancels this
-    // handler) or not (checked here).
+    // follows a long press, so holding never also launches. Hold vs drag
+    // is settled by motion alone: moving past the drag threshold before
+    // 0.5s cancels this handler (DragHandler's exclusive grab), and moving
+    // after the menu is up folds it again (dock.beginDrag) — so a hold
+    // that turns into a drag never leaves a menu behind.
     longPressThreshold: 0.5
     onLongPressed: {
       if (pinHover.hovered || cell.dock.dragging) return
-      if (point.modifiers & Qt.ShiftModifier) return
       stackDwell.stop()
       cell.dock.openMenu(cell)
     }

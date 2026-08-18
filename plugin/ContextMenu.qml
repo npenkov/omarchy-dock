@@ -48,10 +48,29 @@ PopupWindow {
 
   readonly property bool isRunningItem: Util.isPlainObject(item) && item.__running === true
 
+  // A pinned desktop-entry item with a jump list can name one of its
+  // actions as what a plain click runs (`"action"` in shell.json). Only
+  // pinned items have a slot to write to; exec items have no jump list.
+  readonly property bool canChooseClick: Util.isPlainObject(item) && !isRunningItem
+    && item.exec === undefined && entry !== null
+    && dock.menuActions(entry).length > 0 && dock.items.indexOf(item) >= 0
+
+  // The action a click currently runs, or null for the plain launch.
+  readonly property var clickAction: open ? dock.defaultAction(item, entry) : null
+
+  // While true the menu shows the click-default picker instead of its rows.
+  property bool choosing: false
+
   function openFor(cell) {
-    menu.item = cell.modelData
+    // The Repeater hands each cell a *converted copy* of its item, so
+    // cell.modelData never satisfies dock.items.indexOf(). Anything that
+    // writes back by slot (Unpin, Click Opens…) needs the canonical object,
+    // which is what dock.displayItems holds at the cell's index.
+    var canonical = dock.displayItems[cell.index]
+    menu.item = canonical !== undefined ? canonical : cell.modelData
     menu.entry = cell.entry
     menu.anchorCell = cell
+    menu.choosing = false
     menu.adoptWins(dock.windowsFor(cell.modelData))
     if (menu.open) {
       // Switching icons under an open menu: same surface, new anchor.
@@ -65,7 +84,15 @@ PopupWindow {
   function close() {
     if (!menu.open) return
     menu.open = false
+    menu.choosing = false
     menu.dock.menuReleased()
+  }
+
+  // Swap between the menu and the click-default picker in place. The row
+  // count changes, so the popup re-anchors once its new size has settled.
+  function setChoosing(on) {
+    menu.choosing = on
+    Qt.callLater(function() { if (menu.open) menu.anchor.updateAnchor() })
   }
 
   // The row model. Rebuilt on every open and whenever the window list
@@ -73,14 +100,38 @@ PopupWindow {
   readonly property var rows: {
     if (!open) return []
     var out = []
+    var acts = dock.menuActions(entry)
+    var cur = clickAction
+    var curId = cur ? String(cur.id || "") : ""
+
+    if (choosing) {
+      // The picker: the plain launch, then every action; the marked row is
+      // what a click runs now. Picking writes and closes; Back returns.
+      out.push({ kind: "action", glyph: curId === "" ? "󰄴" : "󰄰",
+                 label: "Open " + (dock.itemLabel(item, entry) || "the app"),
+                 act: "click-action", actionId: "" })
+      for (var c = 0; c < acts.length; c++) {
+        var cid = String(acts[c].id || "")
+        out.push({ kind: "action", glyph: cid === curId ? "󰄴" : "󰄰",
+                   label: String(acts[c].name || acts[c].id || "Action"),
+                   act: "click-action", actionId: cid })
+      }
+      out.push({ kind: "sep" })
+      out.push({ kind: "action", glyph: "󰁍", label: "Back", act: "back", dim: true })
+      return out
+    }
+
     // The app's own Desktop Actions first — its jump list (a browser's
     // private window, an RDP manager's saved hosts…) is the reason to
-    // right-click an icon; the dock's own rows follow.
-    var acts = dock.menuActions(entry)
+    // right-click an icon; the dock's own rows follow. The action a plain
+    // click runs, if one is set, wears the pointer glyph.
     if (acts.length > 0) {
-      for (var a = 0; a < acts.length; a++)
-        out.push({ kind: "action", glyph: "󰅂", label: String(acts[a].name || acts[a].id || "Action"),
+      for (var a = 0; a < acts.length; a++) {
+        var isClick = curId !== "" && String(acts[a].id || "") === curId
+        out.push({ kind: "action", glyph: isClick ? "󰍽" : "󰅂",
+                   label: String(acts[a].name || acts[a].id || "Action"),
                    act: "desktop-action", actionIndex: a })
+      }
       out.push({ kind: "sep" })
     }
     if (launchable)
@@ -100,11 +151,17 @@ PopupWindow {
                  label: wins.length > 1 ? "Close All Windows" : "Close Window", act: "close-wins" })
     }
     out.push({ kind: "sep" })
+    if (canChooseClick)
+      out.push({ kind: "action", glyph: "󰍽", label: "Click Opens…", act: "choose-click", dim: true })
     out.push({ kind: "action", glyph: "󰒓", label: "Dock Settings…", act: "settings", dim: true })
     return out
   }
 
   function run(row) {
+    // The picker swaps rows in place; everything else closes the menu.
+    if (row.act === "choose-click") { menu.setChoosing(true); return }
+    if (row.act === "back") { menu.setChoosing(false); return }
+
     // Snapshot before close() clears the context.
     var theItem = menu.item
     var theEntry = menu.entry
@@ -115,6 +172,7 @@ PopupWindow {
       var acts = menu.dock.menuActions(theEntry)
       if (acts[row.actionIndex]) menu.dock.runDesktopAction(theEntry, acts[row.actionIndex])
     }
+    else if (row.act === "click-action") menu.dock.requestClickAction(theItem, row.actionId)
     else if (row.act === "launch") menu.dock.launchNewWindow(theItem, theEntry)
     else if (row.act === "pin") menu.dock.requestPin(theItem)
     else if (row.act === "unpin") menu.dock.requestUnpin(theItem)

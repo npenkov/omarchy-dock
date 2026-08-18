@@ -569,7 +569,7 @@ Item {
                 SRadio {
                   label: "Command / script"
                   on: root.buf.exec !== undefined
-                  onPicked: if (root.buf.exec === undefined) root.setBuf("exec", "")
+                  onPicked: if (root.buf.exec === undefined) { root.setBuf("exec", ""); root.setBuf("action", undefined) }
                 }
               }
               SInput {
@@ -595,6 +595,45 @@ Item {
                 }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.picker = "entries" }
+              }
+            }
+
+            // What a plain click runs, for a desktop entry that ships a
+            // jump list: the app itself, or one of its Desktop Actions
+            // (`"action": "<id>"`). Absent otherwise.
+            Column {
+              id: clickOpens
+              readonly property var entry: root.buf.exec === undefined ? root.dock.desktopEntry(root.buf) : null
+              readonly property var actions: root.dock.menuActions(entry)
+              readonly property string current: root.buf.action !== undefined ? String(root.buf.action) : ""
+              visible: actions.length > 0
+              width: parent.width
+              spacing: Style.spacing.sm
+              SLabel { text: "CLICK OPENS" }
+              Flow {
+                width: parent.width
+                spacing: Style.spacing.xxl
+                SRadio {
+                  label: "The app"
+                  on: clickOpens.current === ""
+                  onPicked: root.setBuf("action", undefined)
+                }
+                Repeater {
+                  model: clickOpens.actions
+                  delegate: SRadio {
+                    required property var modelData
+                    label: String(modelData.name || modelData.id || "Action")
+                    on: clickOpens.current === String(modelData.id || "")
+                    onPicked: root.setBuf("action", String(modelData.id || ""))
+                  }
+                }
+              }
+              SText {
+                visible: clickOpens.current !== "" && !clickOpens.actions.some(function(a) { return String(a.id || "") === clickOpens.current })
+                text: "Set to “" + clickOpens.current + "”, which this entry no longer ships — a click falls back to the app."
+                opacity: 0.6
+                wrapMode: Text.WordWrap
+                width: parent.width
               }
             }
 

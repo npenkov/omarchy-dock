@@ -13,7 +13,8 @@ Anything running carries an accent indicator; clicking it focuses its most
 recent window, wherever it is. Right-click (or click-and-hold, for
 trackpads) for the app's own **Desktop Actions** (its `.desktop` jump list —
 a browser's private window, a launcher's saved hosts…), then New Window,
-Pin/Unpin, per-window focus, and Close. An app whose list changes at
+Pin/Unpin, per-window focus, and Close; **Click Opens…** makes one of those
+actions what a plain click on the icon runs. An app whose list changes at
 runtime can simply rewrite its `.desktop` file; the menu picks it up on
 the next open. Hover a running app for the pin badge; drag
 icons to reorder, and drag across the divider to pin or unpin. App icons
@@ -115,8 +116,30 @@ Settings on the plugin entry:
 | `showWhenEmpty` | Still reveal when there are no items |
 
 Item keys: `exec`, `desktop`, `glyph`, `icon`, `label`, `iconScale`, `tint`,
-`appId`, `spacer`, and `when` (a shell command; the item only shows when it
-exits 0).
+`appId`, `action`, `spacer`, and `when` (a shell command; the item only
+shows when it exits 0).
+
+### Click opens a Desktop Action
+
+A desktop-entry item can make one of its own Desktop Actions what a plain
+click runs — an RDP launcher's "Work PC" straight from the icon, a
+browser's private window. Right-click the icon → **Click Opens…** and pick
+it (the row a click runs wears the 󰍽 glyph in the menu from then on); or
+"Click action" in `omarchy-dock-config`; or "CLICK OPENS" in the settings
+GUI; or by hand:
+
+```json
+{ "desktop": "dev.rdf.Rdp", "action": "connect-work-pc" }
+```
+
+`action` is the action's id from the `.desktop` file (`Actions=` /
+`[Desktop Action <id>]`). With it set the item is a shortcut to that
+action: a click **always** runs it, whether the app is running or not —
+that's the point of it (connecting to Work PC must work while Work VM is
+up), and the app's own action decides whether to raise an existing session
+or start another. The running indicator, hover stack, and the rest of the
+menu are unchanged, so focusing a window is one hover or right-click away.
+An id the entry no longer ships falls back to the plain click.
 
 ### How windows are matched to items
 

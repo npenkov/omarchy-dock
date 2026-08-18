@@ -772,6 +772,67 @@ set_condition() {
     && notice "\"$label\" now shows only when: $cmd"
 }
 
+# The Desktop Actions of an entry, one "id<TAB>Name" per line — the same
+# list the plugin puts in the context menu: none for Terminal=true entries
+# (the plugin can't run those outside gtk-launch), and the app's own
+# new-window action is the plain launch already, so it isn't offered.
+desktop_actions() {
+  local id=$1 dir file
+  for dir in "$HOME/.local/share/applications" /usr/share/applications; do
+    [[ -f "$dir/$id.desktop" ]] && { file="$dir/$id.desktop"; break; }
+  done
+  [[ -n ${file:-} ]] || return 0
+  grep -qiE '^Terminal[[:space:]]*=[[:space:]]*true' "$file" && return 0
+
+  local ids aid name lc
+  ids=$(grep -m1 '^Actions=' "$file" | cut -d= -f2- | tr ';' '\n')
+  while read -r aid; do
+    [[ -z $aid ]] && continue
+    lc=${aid,,}; lc=${lc//_/-}
+    [[ $lc == "new-window" || $lc == "newwindow" ]] && continue
+    name=$(awk -v s="[Desktop Action $aid]" '
+      $0 == s { in_s = 1; next }
+      /^\[/ { in_s = 0 }
+      in_s && /^Name=/ { sub(/^Name=/, ""); print; exit }' "$file")
+    printf '%s\t%s\n' "$aid" "${name:-$aid}"
+  done <<<"$ids"
+}
+
+# What a plain click on a desktop-entry item runs: the app, or one of its
+# Desktop Actions (item key `action`). Right-click → Click Opens… does the
+# same from the dock itself.
+set_click_action() {
+  [[ $(item_count) == "0" ]] && { notice "No items yet."; return; }
+
+  local pos label idx desktop current
+  pos=$(item_choices | gum choose --header "Which item?" --label-delimiter=$'\t')
+  [[ -z $pos ]] && return
+  idx=$((pos - 1))
+  label=$(item_label "$idx")
+  desktop=$(dock_field ".items[$idx] | if .exec == null then (.desktop // empty) else empty end")
+  [[ -z $desktop ]] && { notice "\"$label\" isn't a desktop-entry item — only those have Desktop Actions."; return; }
+
+  local actions
+  actions=$(desktop_actions "$desktop")
+  [[ -z $actions ]] && { notice "\"$label\" ($desktop.desktop) has no Desktop Actions to choose from."; return; }
+
+  current=$(dock_field ".items[$idx].action // empty")
+  local picked
+  # gum hands back the value after the delimiter; the plain-launch row
+  # carries "-" so it can't be confused with a cancelled prompt.
+  picked=$( { printf 'Open %s (plain launch)\t-\n' "$label"
+              awk -F'\t' '{ printf "%s\t%s\n", $2, $1 }' <<<"$actions"; } |
+            gum choose --header "A click on \"$label\" opens…  (now: ${current:-the app})" \
+              --label-delimiter=$'\t')
+  [[ -z $picked ]] && return
+  if [[ $picked == "-" ]]; then
+    apply ".items[$idx] |= del(.action)" && notice "A click on \"$label\" opens the app."
+  else
+    apply ".items[$idx].action = $(jq -Rn --arg a "$picked" '$a')" \
+      && notice "A click on \"$label\" now runs its \"$picked\" action."
+  fi
+}
+
 preview() {
   omarchy-shell rdf.dock show >/dev/null 2>&1
   notice "Showing the dock for 3 seconds..."
@@ -984,7 +1045,7 @@ while true; do
   choice=$(gum choose \
     "Add apps" "Add a command" "Add a divider" \
     "Change icon / glyph" "Give every item a glyph" \
-    "Remove items" "Reorder" "Visibility condition" "Appearance" \
+    "Remove items" "Reorder" "Click action" "Visibility condition" "Appearance" \
     "Preview" "Quit" --header "What next?")
 
   case $choice in
@@ -995,6 +1056,7 @@ while true; do
     "Give every item a glyph") assign_glyphs_all ;;
     "Remove items")  remove_items ;;
     "Reorder")       reorder ;;
+    "Click action")  set_click_action ;;
     "Visibility condition") set_condition ;;
     "Appearance")    appearance ;;
     "Preview")       preview ;;

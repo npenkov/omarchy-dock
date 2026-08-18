@@ -49,8 +49,9 @@ desktop.
   QML failures are silent otherwise.
 - Headless testing: real IPC surface on the plugin —
   `omarchy-shell rdf.dock state|show|hide|launch <slot>|menu <slot>|
-  menuClose|stack <slot>|stackClose|settings|settingsState|settingsClose`.
-  `state` returns rich JSON (sections, running matches, menu state).
+  menuRun <row>|menuClose|stack <slot>|stackClose|settings|settingsSelect <i>|
+  settingsState|settingsClose`. `state` returns rich JSON (sections, running matches,
+  menu state incl. `menuLabels`; `menuRun` taps a row by 0-based index).
   Screenshot with `grim -o <output>`; crop with `magick`.
 - **Synthetic cursor moves do not fire hover on layer surfaces** — hover
   paths (pin badge, dwell, magnify) need a human; that's what the IPC

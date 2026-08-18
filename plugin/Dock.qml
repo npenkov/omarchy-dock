@@ -848,6 +848,18 @@ Item {
 
     function menuClose(): string { contextMenu.close(); return "ok" }
 
+    // Tap a row of the open menu by 0-based index (separators count), so a
+    // test can drive the picker without the pointer. `state` lists labels.
+    function menuRun(row: string): string {
+      if (!contextMenu.open) return "menu closed"
+      var i = Math.round(Number(row))
+      var rows = contextMenu.rows
+      if (!(i >= 0 && i < rows.length)) return "no such row"
+      if (rows[i].kind === "sep") return "separator"
+      contextMenu.run(rows[i])
+      return "ok"
+    }
+
     // Same pointer-free access for the window stack.
     function stack(slot: string): string {
       var i = Math.round(Number(slot)) - 1
@@ -867,6 +879,16 @@ Item {
       return "ok"
     }
 
+    // Select an item (0-based, items[] order) in the open settings panel.
+    function settingsSelect(index: string): string {
+      var p = settingsLoader.item
+      if (!p || !p.opened) return "not open"
+      var i = Math.round(Number(index))
+      if (!(i >= 0 && i < root.items.length)) return "no such item"
+      p.select(i)
+      return "ok"
+    }
+
     function settingsState(): string {
       var p = settingsLoader.item
       if (!p) return "not loaded"
@@ -882,6 +904,10 @@ Item {
         display: root.displayItems.length,
         menuOpen: contextMenu.open,
         menuRows: contextMenu.rows.length,
+        menuChoosing: contextMenu.choosing,
+        menuCanChoose: contextMenu.canChooseClick,
+        menuItemIndex: contextMenu.item ? root.items.indexOf(contextMenu.item) : -1,
+        menuLabels: contextMenu.rows.map(function (r) { return r.kind === "sep" ? "—" : (r.glyph + " " + r.label) }),
         showRunning: root.showRunning,
         runningIndicator: root.runningIndicator,
         running: (function() {
@@ -971,6 +997,17 @@ Item {
 
   function activate(item, entry) {
     if (!Util.isPlainObject(item)) return
+
+    // An item pointed at one of its app's Desktop Actions (`"action"`) is a
+    // shortcut to that action: a click always runs it, running windows or
+    // not — an RDP launcher's "Work PC" must connect to Work PC even while
+    // "Work VM" is up. Focus is still one hover (the stack) or right-click
+    // away.
+    var action = root.defaultAction(item, entry)
+    if (action) {
+      runDesktopAction(entry, action)
+      return
+    }
 
     // Anything with a live window focuses it — most-recently-used first,
     // wherever its workspace is — rather than launching a duplicate. A
@@ -1066,6 +1103,33 @@ Item {
   // Every other action, for the menu's app-specific section.
   function menuActions(entry) {
     return root.desktopActions(entry).filter(function (a) { return !root.isNewWindowAction(a) })
+  }
+
+  // The action an item's `"action": "<id>"` names, if the entry still ships
+  // it. A stale id (the app rewrote its .desktop file) falls back to the
+  // plain click, silently — a dock icon should never go dead.
+  function defaultAction(item, entry) {
+    if (!Util.isPlainObject(item) || item.action === undefined || item.action === null) return null
+    if (item.exec !== undefined) return null   // a command item has no jump list
+    var want = String(item.action)
+    if (want === "") return null
+    var list = root.desktopActions(entry)
+    for (var i = 0; i < list.length; i++)
+      if (String(list[i].id || "") === want) return list[i]
+    return null
+  }
+
+  // Set (or clear, with "") the click-default action of a pinned item, via
+  // the configurator's set-item — the same wholesale write the settings GUI
+  // does. Internal `__` keys never reach shell.json.
+  function requestClickAction(item, actionId) {
+    var idx = items.indexOf(item)
+    if (idx < 0) return
+    var next = {}
+    for (var k in item) if (k.indexOf("__") !== 0) next[k] = item[k]
+    if (actionId) next.action = String(actionId)
+    else delete next.action
+    Util.execDetached("omarchy-dock-config set-item " + idx + " " + Util.shellQuote(JSON.stringify(next)))
   }
 
   // ---------------------------------------------------------- reveal zone

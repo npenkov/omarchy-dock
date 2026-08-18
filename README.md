@@ -139,7 +139,10 @@ that's the point of it (connecting to Work PC must work while Work VM is
 up), and the app's own action decides whether to raise an existing session
 or start another. The running indicator, hover stack, and the rest of the
 menu are unchanged, so focusing a window is one hover or right-click away.
-An id the entry no longer ships falls back to the plain click.
+An id the entry no longer ships falls back to the plain click. The hover
+label (and the settings list) names the item after the action — "Work PC"
+rather than "Remote Desktop" — unless the item carries an explicit `label`,
+which always wins.
 
 ### How windows are matched to items
 

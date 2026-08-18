@@ -123,7 +123,11 @@ Item {
   function itemTitle(item) {
     if (!Util.isPlainObject(item)) return "(item)"
     if (item.spacer === true) return "── divider ──"
-    return String(item.label || item.desktop || item.appId || item.exec || "(unnamed)")
+    if (item.label) return String(item.label)
+    // Named after its click action, like the hover label is.
+    var action = root.dock.defaultAction(item, root.dock.desktopEntry(item))
+    if (action && action.name) return String(action.name)
+    return String(item.desktop || item.appId || item.exec || "(unnamed)")
   }
 
   function itemGlyph(item) {

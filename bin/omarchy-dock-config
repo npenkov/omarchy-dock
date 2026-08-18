@@ -77,7 +77,8 @@ item_count() { dock_field '.items | length'; }
 item_label() {
   jq -r "$DOCK.items[$1] |
     if .spacer == true then \"── divider ──\"
-    else (.label // .desktop // .exec // \"(unnamed)\") end" "$CFG"
+    else ((.label // .desktop // .exec // \"(unnamed)\") +
+          (if .action then \" → \(.action)\" else \"\" end)) end" "$CFG"
 }
 
 # gum's --label-delimiter reads each line as "label<delim>value": it shows the
@@ -90,7 +91,8 @@ item_choices() {
     \"\(.key + 1). \" +
     (if .value.spacer == true then \"── divider ──\"
      else ((if .value.glyph then \"\(.value.glyph)  \" else \"\" end) +
-           (.value.label // .value.desktop // .value.exec // \"(unnamed)\")) end) +
+           (.value.label // .value.desktop // .value.exec // \"(unnamed)\") +
+           (if .value.action then \" → \(.value.action)\" else \"\" end)) end) +
     \"\t\(.key + 1)\"" "$CFG"
 }
 

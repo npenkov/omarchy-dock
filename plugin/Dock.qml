@@ -975,12 +975,25 @@ Item {
     return null
   }
 
-  function itemLabel(item, entry) {
+  // The app's own name for the item — explicit `label`, else the entry's
+  // Name. What the menu calls the plain launch ("Open Remote Desktop").
+  function appLabel(item, entry) {
     if (!Util.isPlainObject(item)) return ""
     if (item.label) return String(item.label)
     if (entry && entry.name) return String(entry.name)
     if (item.desktop) return String(item.desktop)
     return ""
+  }
+
+  // What the hover label shows. An explicit `label` always wins; otherwise
+  // an item whose click runs a Desktop Action is named after that action
+  // ("Work PC", not "Remote Desktop"), so the label says what a click does.
+  function itemLabel(item, entry) {
+    if (!Util.isPlainObject(item)) return ""
+    if (item.label) return String(item.label)
+    var action = root.defaultAction(item, entry)
+    if (action && action.name) return String(action.name)
+    return root.appLabel(item, entry)
   }
 
   function itemIcon(item, entry) {

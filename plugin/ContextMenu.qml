@@ -108,7 +108,7 @@ PopupWindow {
       // The picker: the plain launch, then every action; the marked row is
       // what a click runs now. Picking writes and closes; Back returns.
       out.push({ kind: "action", glyph: curId === "" ? "󰄴" : "󰄰",
-                 label: "Open " + (dock.itemLabel(item, entry) || "the app"),
+                 label: "Open " + (dock.appLabel(item, entry) || "the app"),
                  act: "click-action", actionId: "" })
       for (var c = 0; c < acts.length; c++) {
         var cid = String(acts[c].id || "")

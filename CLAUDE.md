@@ -78,6 +78,10 @@ desktop.
   driven = no grab, the owner opens/closes it. Don't reach for fullscreen
   layers with input masks or cursor polling for either — that was tried
   and is what the grab replaces.
+- A Repeater over a JS array hands each delegate a *converted copy* of its
+  element: `items.indexOf(cell.modelData)` is always -1. Anything keyed by
+  identity takes `displayItems[cell.index]` (the canonical ref) instead —
+  ContextMenu.openFor does; menu Unpin was a silent no-op until it did.
 - `dock.windowsFor()` allocates per call: anything that binds a Repeater
   to a window list snapshots it through `dock.sameWindows` first, or the
   delegates rebuild (and lose hover) on every model tick.

@@ -49,9 +49,14 @@ desktop.
   QML failures are silent otherwise.
 - Headless testing: real IPC surface on the plugin —
   `omarchy-shell rdf.dock state|show|hide|launch <slot>|menu <slot>|
-  menuRun <row>|menuClose|stack <slot>|stackClose|settings|settingsSelect <i>|
-  settingsState|settingsClose`. `state` returns rich JSON (sections, running matches,
-  menu state incl. `menuLabels`; `menuRun` taps a row by 0-based index).
+  menuRun <row>|menuSweep <x> <y>|menuSweepRelease|menuClose|stack <slot>|
+  stackClose|settings|settingsSelect <i>|settingsState|settingsClose`.
+  `state` returns rich JSON (sections, running matches, menu state incl.
+  `menuLabels`, `menuRect` in dock-window coords, `menuSweepRow`; `menuRun`
+  taps a row by 0-based index; `menuSweep`/`menuSweepRelease` drive the
+  click-and-hold sweep in dock-window coords).
+- The user clicking anywhere clears the menu's focus grab, so a multi-step
+  menu test has to run in *one* Bash call right after `menu <slot>`.
   Screenshot with `grim -o <output>`; crop with `magick`.
 - **Synthetic cursor moves do not fire hover on layer surfaces** — hover
   paths (pin badge, dwell, magnify) need a human; that's what the IPC
@@ -82,6 +87,15 @@ desktop.
   element: `items.indexOf(cell.modelData)` is always -1. Anything keyed by
   identity takes `displayItems[cell.index]` (the canonical ref) instead —
   ContextMenu.openFor does; menu Unpin was a silent no-op until it did.
+- Pointer events for a press that began on the dock keep going to the dock
+  surface (compositor implicit grab) even once the pointer is over a
+  popup; the popup never sees them. The click-and-hold sweep therefore
+  runs on a `PointHandler` in DockItem and maps the point into the menu via
+  `mapToGlobal`/`mapFromGlobal` — the popup QWindow's position is the
+  xdg_popup configure relative to its parent, so that round-trip is the
+  true on-screen offset, including any Slide the compositor applied (a
+  menu opened while the dock is still parked sits ~30px higher than one
+  opened on a revealed dock, and the mapping tracks it).
 - `dock.windowsFor()` allocates per call: anything that binds a Repeater
   to a window list snapshots it through `dock.sameWindows` first, or the
   delegates rebuild (and lose hover) on every model tick.

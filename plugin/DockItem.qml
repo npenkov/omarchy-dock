@@ -187,10 +187,19 @@ Item {
   // (WlrKeyboardFocus.None), so the compositor never sends it modifier
   // state and Shift/Ctrl read as unpressed here. Disambiguation from the
   // click-and-hold menu is by motion instead — see the TapHandler below.
+  //
+  // Once a hold has opened the menu (holdMenu), motion across the dock is
+  // the sweep into the menu, not a drag: the cross axis is disabled, so
+  // mostly-across motion never activates this handler, while mostly-along
+  // motion still does and folds the menu as before. Past the card's inward
+  // face (sweeping) the handler is off for the rest of the press — inside
+  // the menu the pointer roams freely in every direction.
   DragHandler {
     id: dragHandler
-    enabled: !cell.isDivider
+    enabled: !cell.isDivider && !cell.sweeping
     target: null
+    xAxis.enabled: !(cell.holdMenu && cell.dock.vertical)
+    yAxis.enabled: !(cell.holdMenu && !cell.dock.vertical)
 
     onActiveChanged: {
       if (active) cell.dock.beginDrag(cell, centroid.scenePosition.x, centroid.scenePosition.y)
@@ -258,6 +267,43 @@ Item {
       if (pinHover.hovered || cell.dock.dragging) return
       stackDwell.stop()
       cell.dock.openMenu(cell)
+      // A hold on the icon whose menu is already up toggles it shut; only a
+      // hold that actually opened it can sweep into it.
+      cell.holdMenu = cell.dock.menuOpen && cell.dock.menuIndex === cell.index
+    }
+  }
+
+  // Click-and-hold, continued: with the menu up and the button still down,
+  // the pointer can travel into the menu, highlight a row and release on it
+  // to run it — the same as clicking it. Releasing anywhere else leaves the
+  // menu exactly as a stationary hold does.
+  //
+  // The press is the dock surface's: the compositor's implicit grab routes
+  // every move and the release back here even once the pointer is over
+  // the popup, and the popup itself never sees them. PointHandler is the
+  // handler that keeps reporting a pressed point after it strays outside
+  // the item, and being passive it coexists with the tap and drag handlers.
+  property bool holdMenu: false   // this press opened the menu
+  property bool sweeping: false   // and the pointer has crossed into menu territory
+
+  PointHandler {
+    id: holdPoint
+    enabled: !cell.isRule
+    acceptedButtons: Qt.LeftButton
+
+    onPointChanged: {
+      if (!active || !cell.holdMenu || cell.dock.dragging) return
+      var win = cell.QsWindow.window
+      if (!win) return
+      var p = win.contentItem.mapFromItem(null, point.scenePosition.x, point.scenePosition.y)
+      if (cell.dock.menuSweep(cell, win, p.x, p.y)) cell.sweeping = true
+    }
+
+    onActiveChanged: {
+      if (active) return
+      if (cell.holdMenu) cell.dock.menuSweepRelease(cell)
+      cell.holdMenu = false
+      cell.sweeping = false
     }
   }
 

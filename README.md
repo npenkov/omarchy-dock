@@ -14,7 +14,10 @@ recent window, wherever it is. Right-click (or click-and-hold, for
 trackpads) for the app's own **Desktop Actions** (its `.desktop` jump list —
 a browser's private window, a launcher's saved hosts…), then New Window,
 Pin/Unpin, per-window focus, and Close; **Click Opens…** makes one of those
-actions what a plain click on the icon runs. An app whose list changes at
+actions what a plain click on the icon runs. A click-and-hold can carry
+straight on into the menu: keep the button down, slide up onto the row you
+want and release there — same as clicking it. Let go on the icon instead
+and the menu just stays up. An app whose list changes at
 runtime can simply rewrite its `.desktop` file; the menu picks it up on
 the next open. Hover a running app for the pin badge; drag
 icons to reorder, and drag across the divider to pin or unpin. App icons

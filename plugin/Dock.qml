@@ -196,6 +196,22 @@ Item {
 
   function closeMenu() { contextMenu.close() }
 
+  // Click-and-hold sweep (see ContextMenu.sweepAt): the cell that opened
+  // the menu by holding forwards the still-pressed pointer, in its window's
+  // coordinates. Returns whether the pointer has crossed the card's inward
+  // face — past it the hold is a menu gesture, not a drag, and the cell
+  // retires its DragHandler for the rest of the press.
+  function menuSweep(cell, window, wx, wy) {
+    if (menuOpen && !dragging && cell.index === menuIndex)
+      contextMenu.sweepAt(window, wx, wy)
+    var across = vertical ? wx : wy
+    return edgeFirst ? across > cardInnerFace : across < cardInnerFace
+  }
+
+  function menuSweepRelease(cell) {
+    if (menuOpen && cell.index === menuIndex) contextMenu.sweepRelease()
+  }
+
   // Icon hover while a popup is up, taskbar-style: the stack follows the
   // pointer — a running icon switches it there, a launch-only icon folds it
   // — and moving onto another icon dismisses the menu, so the pointer never
@@ -860,6 +876,22 @@ Item {
       return "ok"
     }
 
+    // Drive the click-and-hold sweep without a pointer: a point in the
+    // anchor window's coordinates (state.menuRect says where the menu is),
+    // then the release. Returns the highlighted row, or -1.
+    function menuSweep(x: string, y: string): string {
+      if (!contextMenu.open || !contextMenu.anchorCell) return "menu closed"
+      var cell = contextMenu.anchorCell
+      root.menuSweep(cell, cell.QsWindow.window, Number(x), Number(y))
+      return String(contextMenu.sweepRow)
+    }
+
+    function menuSweepRelease(): string {
+      if (!contextMenu.open || !contextMenu.anchorCell) return "menu closed"
+      root.menuSweepRelease(contextMenu.anchorCell)
+      return "ok"
+    }
+
     // Same pointer-free access for the window stack.
     function stack(slot: string): string {
       var i = Math.round(Number(slot)) - 1
@@ -908,6 +940,8 @@ Item {
         menuCanChoose: contextMenu.canChooseClick,
         menuItemIndex: contextMenu.item ? root.items.indexOf(contextMenu.item) : -1,
         menuLabels: contextMenu.rows.map(function (r) { return r.kind === "sep" ? "—" : (r.glyph + " " + r.label) }),
+        menuSweepRow: contextMenu.sweepRow,
+        menuRect: contextMenu.anchorCell ? contextMenu.rectInWindow(contextMenu.anchorCell.QsWindow.window) : null,
         showRunning: root.showRunning,
         runningIndicator: root.runningIndicator,
         running: (function() {

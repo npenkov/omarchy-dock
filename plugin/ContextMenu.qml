@@ -61,6 +61,50 @@ PopupWindow {
   // While true the menu shows the click-default picker instead of its rows.
   property bool choosing: false
 
+  // Sweep selection: a click-and-hold that opened the menu can carry on
+  // into it — the row under the still-held pointer lights up like a hover,
+  // and releasing there runs it (macOS dock behaviour). The pointer events
+  // never reach this popup: the button went down on the dock, so the
+  // compositor's implicit grab keeps routing motion and the release to the
+  // dock surface. DockItem forwards them here in dock-window coordinates.
+  property int sweepRow: -1
+
+  // Menu content coordinates of a point in the anchor window. Both windows
+  // carry compositor-derived positions (the popup's comes from its
+  // xdg_popup configure, relative to its parent), so the global round-trip
+  // is the parent → popup offset, slides and all.
+  function pointFromWindow(window, wx, wy) {
+    var g = window.contentItem.mapToGlobal(wx, wy)
+    return menu.contentItem.mapFromGlobal(g.x, g.y)
+  }
+
+  function sweepAt(window, wx, wy) {
+    if (!menu.open) return
+    var p = menu.pointFromWindow(window, wx, wy)
+    var c = column.mapFromItem(menu.contentItem, p.x, p.y)
+    var hit = column.childAt(c.x, c.y)
+    menu.sweepRow = (hit && hit.rowIndex !== undefined && !hit.isSep) ? hit.rowIndex : -1
+  }
+
+  // The hold ended. On a row: run it. Anywhere else — on the icon, in a gap
+  // of the menu, off both — the menu stays up, exactly as a hold that never
+  // moved leaves it; a click elsewhere dismisses it as usual.
+  function sweepRelease() {
+    var i = menu.sweepRow
+    menu.sweepRow = -1
+    if (!menu.open || i < 0 || i >= menu.rows.length) return
+    var row = menu.rows[i]
+    if (row.kind !== "sep") menu.run(row)
+  }
+
+  // The menu's rectangle in its anchor window's coordinates, for the state
+  // dump and headless sweep tests.
+  function rectInWindow(window) {
+    if (!menu.open || !window) return null
+    var o = window.contentItem.mapFromGlobal(menu.contentItem.mapToGlobal(0, 0))
+    return { x: Math.round(o.x), y: Math.round(o.y), width: menu.width, height: menu.height }
+  }
+
   function openFor(cell) {
     // The Repeater hands each cell a *converted copy* of its item, so
     // cell.modelData never satisfies dock.items.indexOf(). Anything that
@@ -71,6 +115,7 @@ PopupWindow {
     menu.entry = cell.entry
     menu.anchorCell = cell
     menu.choosing = false
+    menu.sweepRow = -1
     menu.adoptWins(dock.windowsFor(cell.modelData))
     if (menu.open) {
       // Switching icons under an open menu: same surface, new anchor.
@@ -85,6 +130,7 @@ PopupWindow {
     if (!menu.open) return
     menu.open = false
     menu.choosing = false
+    menu.sweepRow = -1
     menu.dock.menuReleased()
   }
 
@@ -264,9 +310,13 @@ PopupWindow {
         delegate: Item {
           id: row
           required property var modelData
+          required property int index
 
+          // `index` is a delegate-local name; column.childAt() hands back
+          // the Item, and sweepAt reads this to find the row.
+          readonly property int rowIndex: index
           readonly property bool isSep: modelData.kind === "sep"
-          readonly property bool hot: rowHover.hovered && !isSep
+          readonly property bool hot: (rowHover.hovered || menu.sweepRow === index) && !isSep
 
           implicitHeight: isSep ? Style.spacing.sm * 2 + 1
                                 : Math.round(Style.font.bodySmall + Style.spacing.md * 2 + Style.spacing.xs * 2)

@@ -1,5 +1,7 @@
 # OmarchyDock
 
+![The dock, revealed over the current theme's wallpaper](preview.png)
+
 A macOS-style dock for the [Omarchy](https://omarchy.org/) shell. Hover the
 bottom edge of the screen and it slides up; move away and it hides again.
 It can live on any edge — bottom, top, or vertical against the left or
@@ -50,8 +52,26 @@ and a terminal configurator, `omarchy-dock-config`.
 ## Install
 
 ```bash
-git clone <this repo> ~/Scripts/vibe/OmarchyDock
-cd ~/Scripts/vibe/OmarchyDock
+omarchy plugin add https://github.com/Robindfuller/omarchy-dock --enable
+```
+
+That's the whole install: the repo root is the plugin. The dock appears
+with an empty pinned section and your running apps; right-click any of
+them to pin, or open the settings GUI (right-click → Dock Settings…).
+Two optional extras the plugin manager doesn't do:
+
+- **Blur behind the dock** — copy [hypr/dock.lua](hypr/dock.lua) to
+  `~/.config/hypr/dock.lua` and add
+  `pcall(require, "hypr.dock")` to `~/.config/hypr/hyprland.lua`.
+- **The configurator on your PATH** — the dock always runs its bundled
+  copy, but for terminal use link it:
+  `ln -s ~/.config/omarchy/plugins/rdf.dock/bin/omarchy-dock-config ~/.local/bin/`
+
+### From a checkout
+
+```bash
+git clone https://github.com/Robindfuller/omarchy-dock ~/src/omarchy-dock
+cd ~/src/omarchy-dock
 ./install.sh
 ```
 
@@ -60,7 +80,7 @@ cd ~/Scripts/vibe/OmarchyDock
 
 | Step | Destination |
 |------|-------------|
-| Links the plugin | `~/.config/omarchy/plugins/rdf.dock` → `plugin/` |
+| Links the plugin | `~/.config/omarchy/plugins/rdf.dock` → the checkout |
 | Links the configurator | `~/.local/bin/omarchy-dock-config` → `bin/` |
 | Links the Hyprland settings | `~/.config/hypr/dock.lua` → `hypr/dock.lua` |
 | Adds `pcall(require, "hypr.dock")` | `~/.config/hypr/hyprland.lua` |
@@ -114,6 +134,7 @@ Settings on the plugin entry:
 | `cornerRadius`, `edgeGap` | Shape and offset of the dock card |
 | `fullWidth` | Stretch the card along the whole edge, edge gap on all sides (icons stay centred) |
 | `revealDelay`, `hideDelay` | Hover-in and hover-out delays in ms |
+| `stackDelay` | Hover dwell before a running icon's window previews open, in ms (default 300) |
 | `hotspotFullWidth`, `hotspotHeight` | Size of the trigger zone on the dock's edge |
 | `hideOnLaunch` | Hide the dock after activating an item |
 | `showWhenEmpty` | Still reveal when there are no items |
@@ -179,7 +200,7 @@ omarchy-dock-config set <key> <json>     # dock-level; null unsets
 ./scripts/dev-watch.sh
 ```
 
-Leave that running while you edit `plugin/Dock.qml` and the dock reloads on
+Leave that running while you edit `Dock.qml` and the dock reloads on
 save. It exists because the shell watches `~/.config/omarchy/plugins` with
 `inotifywait -r`, which does not traverse symlinks — so with the plugin
 directory linked here, the shell's own watcher never sees your edits and the
@@ -198,7 +219,8 @@ Edits to `shell.json` need none of this — the shell hot-reloads that on save.
 ## Layout
 
 ```
-plugin/     the shell plugin itself (manifest.json + Dock.qml)
+./          the shell plugin itself (manifest.json + Dock.qml at the root,
+            so the repo installs directly via `omarchy plugin add`)
 bin/        omarchy-dock-config, the interactive configurator
 hypr/       dock.lua — blur and layer rules for Hyprland
 config/     shell.dock.json — the starter dock entry for shell.json
@@ -207,6 +229,14 @@ scripts/    dev-watch.sh — reload the shell while editing
 
 ## Uninstall
 
+Installed through the plugin manager:
+
+```bash
+omarchy plugin remove rdf.dock
+```
+
+Installed from a checkout:
+
 ```bash
 ./uninstall.sh                 # keeps your dock settings in shell.json
 ./uninstall.sh --purge-config  # drops them too
@@ -214,3 +244,7 @@ scripts/    dev-watch.sh — reload the shell while editing
 
 It only removes symlinks that point back into this checkout, so anything you
 installed another way is left alone.
+
+## License
+
+[MIT](LICENSE)

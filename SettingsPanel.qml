@@ -78,7 +78,7 @@ Item {
 
   function revert() { select(selIndex) }
 
-  function cli(args) { Util.execDetached("omarchy-dock-config " + args) }
+  function cli(args) { Util.execDetached(root.dock.configCmd + " " + args) }
 
   // Dock-level settings write straight through; the shell.json reload is
   // the preview.
@@ -747,6 +747,7 @@ Item {
               { key: "edgeGap", label: "EDGE GAP", type: "num", from: 0, to: 32, step: 1, dflt: 6 },
               { key: "revealDelay", label: "REVEAL DELAY (MS)", type: "num", from: 0, to: 600, step: 10, dflt: 90 },
               { key: "hideDelay", label: "HIDE DELAY (MS)", type: "num", from: 0, to: 1500, step: 25, dflt: 350 },
+              { key: "stackDelay", label: "WINDOW PREVIEW DELAY (MS)", type: "num", from: 0, to: 1500, step: 25, dflt: 300 },
               { key: "hotspotHeight", label: "HOTSPOT HEIGHT", type: "num", from: 1, to: 12, step: 1, dflt: 2 },
               { key: "fullWidth", label: "Stretch along the whole edge", type: "bool", dflt: false },
               { key: "labels", label: "Labels on hover", type: "bool", dflt: true },

@@ -92,7 +92,7 @@ command -v inotifywait >/dev/null 2>&1 || warn "inotify-tools is not installed â
 # ------------------------------------------------------------------- files
 
 info "Linking plugin, configurator, and Hyprland settings"
-link "$REPO/plugin" "$PLUGIN_DEST"
+link "$REPO" "$PLUGIN_DEST"
 link "$REPO/bin/omarchy-dock-config" "$BIN_DEST"
 link "$REPO/hypr/dock.lua" "$HYPR_DEST"
 

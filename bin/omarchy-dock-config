@@ -156,7 +156,7 @@ list_apps() {
 glyphs_json() {
   local candidates=(
     "$HOME/.config/omarchy/plugins/rdf.dock/glyphs.json"
-    "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../plugin/glyphs.json"
+    "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../glyphs.json"
   )
   local f
   for f in "${candidates[@]}"; do
@@ -604,7 +604,7 @@ appearance() {
       "Border" "Gap from screen edge" "Stay up on an empty workspace" \
       "Even out icon sizes" "Clear icon size adjustments" \
       "Magnify on hover" "Show labels" \
-      "Reveal delay" "Hide delay" "Stretch along the whole edge" "Hotspot spans the whole edge" \
+      "Reveal delay" "Hide delay" "Window preview delay" "Stretch along the whole edge" "Hotspot spans the whole edge" \
       "Back" --header "What do you want to change?")
 
     case $choice in
@@ -631,6 +631,7 @@ appearance() {
       "Show labels")              set_flag labels "Show a label above the hovered icon" ;;
       "Reveal delay")             set_number revealDelay "Delay before the dock appears (ms)" 90 ;;
       "Hide delay")               set_number hideDelay "Delay before the dock hides (ms)" 350 ;;
+      "Window preview delay")     set_number stackDelay "Hover dwell before a running icon's window previews open (ms)" 300 ;;
       "Stretch along the whole edge") set_flag fullWidth "Stretch the dock card along the whole screen edge" ;;
       "Hotspot spans the whole edge") set_flag hotspotFullWidth "Reveal from anywhere along the dock's screen edge" ;;
       *) return ;;

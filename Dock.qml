@@ -57,6 +57,13 @@ Item {
 
   readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "rdf.dock"
 
+  // The bundled configurator is the one writer for shell.json. A plain
+  // `omarchy plugin add` install has no ~/.local/bin link, so it can't be
+  // found via PATH — run the copy that ships next to this file instead.
+  readonly property string configCmd: manifest && manifest.__sourceDir
+    ? Util.shellQuote(String(manifest.__sourceDir) + "/bin/omarchy-dock-config")
+    : "omarchy-dock-config"
+
   // This plugin's entry in shell.json plugins[]. Reading shell.shellConfig
   // here is what makes the binding re-evaluate on every shell.json save.
   readonly property var config: {
@@ -158,6 +165,9 @@ Item {
   // instead, the full macOS behaviour, off because hover-focus steals
   // focus from wherever you were typing.
   readonly property bool hoverActivate: flag("hoverActivate", false)
+  // Hover dwell (ms) before the stack opens over a running icon; 0 opens it
+  // the moment the pointer lands.
+  readonly property int stackDelay: Math.round(num0("stackDelay", 300))
 
   WindowStack {
     id: windowStack
@@ -285,13 +295,13 @@ Item {
   // shell.json writer — and the config hot-reload brings the change back.
   function requestPin(item) {
     if (!Util.isPlainObject(item) || !item.appId) return
-    Util.execDetached("omarchy-dock-config pin " + Util.shellQuote(String(item.appId)))
+    Util.execDetached(configCmd + " pin " + Util.shellQuote(String(item.appId)))
   }
 
   function requestUnpin(item) {
     var idx = items.indexOf(item)
     if (idx < 0) return
-    Util.execDetached("omarchy-dock-config unpin " + idx)
+    Util.execDetached(configCmd + " unpin " + idx)
   }
 
   function windowsFor(item) { return running.windowsFor(item) }
@@ -431,15 +441,15 @@ Item {
     if (from >= 0) {
       if (t > pinnedFlow) {
         // Dropped past the divider: unpin.
-        Util.execDetached("omarchy-dock-config unpin " + from)
+        Util.execDetached(configCmd + " unpin " + from)
       } else {
         var to = insertAt > from ? insertAt - 1 : insertAt
         if (to !== from)
-          Util.execDetached("omarchy-dock-config move " + from + " " + to)
+          Util.execDetached(configCmd + " move " + from + " " + to)
       }
     } else if (item.__running === true && t <= pinnedFlow) {
       // A running app dropped in the pinned zone pins at that position.
-      Util.execDetached("omarchy-dock-config pin "
+      Util.execDetached(configCmd + " pin "
         + Util.shellQuote(String(item.appId)) + " " + insertAt)
     }
   }
@@ -966,6 +976,7 @@ Item {
         activeScreen: root.activeScreen,
         targetScreen: root.targetScreen,
         showWhenEmpty: root.showWhenEmpty,
+        stackDelay: root.stackDelay,
         border: root.flag("border", true),
         edge: root.edge,
         align: root.align,
@@ -1176,7 +1187,7 @@ Item {
     for (var k in item) if (k.indexOf("__") !== 0) next[k] = item[k]
     if (actionId) next.action = String(actionId)
     else delete next.action
-    Util.execDetached("omarchy-dock-config set-item " + idx + " " + Util.shellQuote(JSON.stringify(next)))
+    Util.execDetached(configCmd + " set-item " + idx + " " + Util.shellQuote(JSON.stringify(next)))
   }
 
   // ---------------------------------------------------------- reveal zone

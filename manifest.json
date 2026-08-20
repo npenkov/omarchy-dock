@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "rdf.dock",
   "name": "Dock",
-  "version": "2.1.0",
-  "author": "rdf",
+  "version": "2.2.0",
+  "author": "Robin Fuller",
   "description": "macOS-style dock for the Omarchy shell: pinned launchers plus running apps, auto-hiding at the bottom edge.",
   "kinds": [
     "panel"

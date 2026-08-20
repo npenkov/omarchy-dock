@@ -24,6 +24,12 @@ PopupWindow {
   property var item: null
   property var anchorCell: null
   property bool open: false
+  // `open` is the logical state; `shown` is whether the card is drawn. They
+  // part only mid-hop: following the pointer to another icon folds the card
+  // where it is, moves it, and unfolds it there (see openFor/hop), rather
+  // than jumping the container and repainting it in place.
+  property bool shown: false
+  property var pendingCell: null
 
   // Live windows for the item, snapshotted by reference — see
   // Dock.sameWindows. Left as-is on close so the still-mapped popup keeps
@@ -48,26 +54,75 @@ PopupWindow {
       close()
       return
     }
+    if (stack.open) {
+      // Back on the icon we're already over (or about to fold from):
+      // cancel any hop and stay put.
+      if (cell === stack.anchorCell) {
+        stack.pendingCell = null
+        stack.shown = true
+        return
+      }
+      // Following the pointer to another icon: fold here, hop once the
+      // card is out, unfold there. A sweep across several icons just
+      // retargets the hop — the card doesn't unfold over each one.
+      stack.pendingCell = cell
+      stack.shown = false
+      // Already out (retargeted before the first frame ever painted): the
+      // opacity won't change again, so hop now rather than wait for it.
+      if (card.opacity === 0) stack.hop()
+      return
+    }
+    stack.target(cell, next)
+    stack.open = true
+    stack.shown = true
+    stack.dock.holdForPopup()
+  }
+
+  function target(cell, next) {
     stack.item = cell.modelData
     stack.anchorCell = cell
     stack.wins = next.slice()
-    if (stack.open) {
-      // Following the pointer to another icon: same surface, new anchor.
-      stack.anchor.updateAnchor()
+  }
+
+  // The second half of a follow: runs when the card has faded out with a
+  // hop pending. Everything that changes the popup's size or position
+  // happens here, while nothing is painted.
+  function hop() {
+    var cell = stack.pendingCell
+    stack.pendingCell = null
+    if (!stack.open) return
+    var next = cell ? (dock.windowsFor(cell.modelData) || []) : []
+    if (next.length < 1) {
+      close()
       return
     }
-    stack.open = true
-    stack.dock.holdForPopup()
+    stack.target(cell, next)
+    stack.anchor.updateAnchor()
+    stack.shown = true
   }
 
   function close() {
     if (!stack.open) return
+    stack.pendingCell = null
     stack.open = false
+    stack.shown = false
     stack.dock.stackReleased()
   }
 
-  visible: open
+  // Stays mapped through the fade-out, like the shell's PopupCard; the
+  // card's opacity is the entrance/exit, not the window's visibility. The
+  // one exception is the dock hiding from under it: the popup is a child
+  // of the dock surface and would ride the park slide down the screen, so
+  // it unmaps on the spot instead.
+  visible: open || (card.opacity > 0 && dock.revealed)
   color: "transparent"
+
+  // Entrance: fade plus a small grow out of the dock edge — scaled about
+  // the card's dock-side edge, so it reads as growing out of the icon
+  // rather than blinking on, and never leaves the popup's bounds the way a
+  // translate would (the window is exactly card-sized; anything pushed
+  // past its edge is clipped).
+  readonly property real grow: 0.96 + 0.04 * card.opacity
 
   readonly property int pad: Style.spacing.sm
   readonly property var stackBorder: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
@@ -109,10 +164,25 @@ PopupWindow {
   }
 
   BorderSurface {
+    id: card
     anchors.fill: parent
     radius: Math.min(stack.dock.cardRadius, Style.cornerRadius)
     color: Util.alpha(Color.popups.background, 0.97)
     borderSpec: stack.stackBorder
+
+    opacity: stack.shown ? 1 : 0
+    Behavior on opacity {
+      NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+    }
+    // Faded out with a hop pending: now move.
+    onOpacityChanged: if (opacity === 0 && stack.pendingCell) stack.hop()
+
+    transform: Scale {
+      origin.x: stack.dock.edge === "left" ? 0 : stack.dock.edge === "right" ? card.width : card.width / 2
+      origin.y: stack.dock.edge === "top" ? 0 : stack.dock.edge === "bottom" ? card.height : card.height / 2
+      xScale: stack.grow
+      yScale: stack.grow
+    }
 
     HoverHandler {
       id: stackHover
@@ -155,8 +225,28 @@ PopupWindow {
               anchors.margins: 1
               captureSource: winRow.modelData
               // Streaming costs a copy per frame per window; only pay it
-              // while the stack is actually on screen.
-              live: stack.open
+              // while the stack is actually on screen (fade-out included,
+              // so the shot doesn't blank mid-exit).
+              live: stack.visible
+              // The first frame lands a beat after the card does. Hold the
+              // placeholder frame until then and fade the shot over it,
+              // rather than letting it snap in.
+              opacity: hasContent ? 1 : 0
+              Behavior on opacity {
+                NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+              }
+
+              // A full window squeezed into a 230px shot is a brutal
+              // downscale, and the view samples it once — text turns to
+              // shimmer. Render through a layer a few times the shot's size
+              // (capped at the source) with mipmaps, so the final step is a
+              // filtered downsample rather than a point-sampled one.
+              layer.enabled: true
+              layer.smooth: true
+              layer.mipmap: true
+              layer.textureSize: Qt.size(
+                Math.max(1, Math.min(Math.round(width * 4), sourceSize.width > 0 ? sourceSize.width : Math.round(width * 4))),
+                Math.max(1, Math.min(Math.round(height * 4), sourceSize.height > 0 ? sourceSize.height : Math.round(height * 4))))
             }
           }
 

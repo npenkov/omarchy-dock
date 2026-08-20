@@ -212,10 +212,11 @@ Item {
   // Hover dwell for the window stack: a running icon held under the
   // pointer for a beat opens the preview stack. Leaving before the dwell
   // fires cancels it; once a stack is up it follows the pointer without a
-  // dwell (dock.onIconHovered), and a menu keeps it shut.
+  // dwell (dock.onIconHovered), and a menu keeps it shut. The dwell is the
+  // `stackDelay` setting.
   Timer {
     id: stackDwell
-    interval: 300
+    interval: cell.dock.stackDelay
     onTriggered: {
       if (iconHover.hovered && cell.wins.length > 0 && !cell.dock.dragging && !cell.dock.menuOpen)
         cell.dock.openStack(cell)

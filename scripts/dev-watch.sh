@@ -22,14 +22,14 @@ command -v inotifywait >/dev/null 2>&1 || {
   exit 1
 }
 
-echo "Watching $REPO/plugin — Ctrl-C to stop."
+echo "Watching $REPO — Ctrl-C to stop."
 omarchy-shell -q shell rescanPlugins
 
 # --format keeps the output to one line per change so the log stays readable.
 # Reloads are coalesced: editors often write a file two or three times in a
 # row, and each rescan tears down and rebuilds the dock.
 inotifywait -m -q -r -e close_write,create,delete,move \
-  --format '%w%f' "$REPO/plugin" |
+  --format '%w%f' "$REPO" |
   while read -r changed; do
     printf '\033[36m::\033[0m %s\n' "${changed#"$REPO/"}"
     # Swallow any writes that land within the next moment, then reload once.

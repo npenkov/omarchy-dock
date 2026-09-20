@@ -52,7 +52,7 @@ and a terminal configurator, `omarchy-dock-config`.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/Robindfuller/omarchy-dock --enable
+omarchy plugin add https://github.com/npenkov/omarchy-dock --enable
 ```
 
 That's the whole install: the repo root is the plugin. The dock appears
@@ -70,7 +70,7 @@ Two optional extras the plugin manager doesn't do:
 ### From a checkout
 
 ```bash
-git clone https://github.com/Robindfuller/omarchy-dock ~/src/omarchy-dock
+git clone https://github.com/npenkov/omarchy-dock ~/src/omarchy-dock
 cd ~/src/omarchy-dock
 ./install.sh
 ```
@@ -244,6 +244,21 @@ Installed from a checkout:
 
 It only removes symlinks that point back into this checkout, so anything you
 installed another way is left alone.
+
+## Upstream
+
+This repository is a fork of
+[Robindfuller/omarchy-dock](https://github.com/Robindfuller/omarchy-dock). To pull in
+changes from it:
+
+```bash
+git remote add upstream https://github.com/Robindfuller/omarchy-dock   # once
+git fetch upstream && git merge upstream/main
+```
+
+A plugin edit only takes effect after `omarchy-restart-shell` — `omarchy-shell shell
+rescanPlugins` reports a reload, but a plugin with `keepLoaded` in its manifest stays
+mounted and keeps running the old code.
 
 ## License
 

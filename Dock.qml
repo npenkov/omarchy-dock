@@ -57,24 +57,80 @@ Item {
 
   readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "rdf.dock"
 
+  readonly property string home: Quickshell.env("HOME") || ""
+
+  // Omarchy 4 strips __sourceDir out of a third-party manifest before handing
+  // it over (publicPluginManifest), so fall back to the conventional install
+  // path — the plugin directory is always the plugin id under plugins/.
+  readonly property string sourceDir: manifest && manifest.__sourceDir
+    ? String(manifest.__sourceDir)
+    : home + "/.config/omarchy/plugins/" + pluginId
+
   // The bundled configurator is the one writer for shell.json. A plain
   // `omarchy plugin add` install has no ~/.local/bin link, so it can't be
   // found via PATH — run the copy that ships next to this file instead.
-  readonly property string configCmd: manifest && manifest.__sourceDir
-    ? Util.shellQuote(String(manifest.__sourceDir) + "/bin/omarchy-dock-config")
+  readonly property string configCmd: sourceDir !== ""
+    ? Util.shellQuote(sourceDir + "/bin/omarchy-dock-config")
     : "omarchy-dock-config"
 
   // This plugin's entry in shell.json plugins[]. Reading shell.shellConfig
   // here is what makes the binding re-evaluate on every shell.json save.
+  //
+  // Omarchy 4 hands a third-party plugin a scoped PluginShellApi proxy that
+  // carries no shellConfig at all, so that read yields nothing and every
+  // setting silently falls back to its built-in default. Read shell.json
+  // ourselves in that case; shellConfigFile watches the file, so settings
+  // still apply live on save.
   readonly property var config: {
     var list = shell && shell.shellConfig && Array.isArray(shell.shellConfig.plugins)
       ? shell.shellConfig.plugins
-      : []
+      : root.filePlugins
     for (var i = 0; i < list.length; i++) {
       var entry = list[i]
       if (Util.isPlainObject(entry) && String(entry.id || "") === root.pluginId) return entry
     }
     return ({})
+  }
+
+  // plugins[] straight from shell.json, for the scoped-proxy case above.
+  property var filePlugins: []
+  property string fileText: ""
+
+  // True when the host is not feeding us config and we are reading the file
+  // ourselves — i.e. every third-party install on Omarchy 4.
+  readonly property bool selfRead: !(shell && shell.shellConfig)
+
+  function adoptConfig(raw) {
+    var next = String(raw || "")
+    if (next === root.fileText) return
+    root.fileText = next
+    try {
+      var parsed = JSON.parse(next || "{}")
+      root.filePlugins = Array.isArray(parsed.plugins) ? parsed.plugins : []
+    } catch (e) {
+      // A half-written file parses as garbage; keep the last good config
+      // rather than blanking the dock mid-write.
+    }
+  }
+
+  FileView {
+    id: shellConfigFile
+    path: root.home !== "" ? root.home + "/.config/omarchy/shell.json" : ""
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.adoptConfig(text())
+  }
+
+  // The configurator writes shell.json atomically (mktemp + rename), which
+  // swaps the inode out from under watchChanges and so never fires it. Re-read
+  // on a slow timer so a settings change still lands without a restart;
+  // adoptConfig() ignores a read that is byte-identical, so a quiet file costs
+  // nothing but the stat.
+  Timer {
+    running: root.selfRead
+    interval: 2000
+    repeat: true
+    onTriggered: shellConfigFile.reload()
   }
 
   function num(key, fallback) {

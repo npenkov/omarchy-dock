@@ -88,12 +88,12 @@ Item {
 
   // QML's XMLHttpRequest won't read file:// without an env opt-in, so the
   // list comes through Quickshell's FileView instead. The path leans on the
-  // registry stamping __sourceDir into every manifest.
+  // dock's sourceDir, which falls back to the conventional install path when
+  // the registry withholds __sourceDir from a third-party manifest.
   FileView {
     id: glyphsFile
     path: {
-      var dir = root.dock.manifest && root.dock.manifest.__sourceDir
-        ? String(root.dock.manifest.__sourceDir) : ""
+      var dir = root.dock ? String(root.dock.sourceDir || "") : ""
       return dir !== "" ? dir + "/glyphs.json" : ""
     }
     onLoaded: {
